@@ -1,133 +1,84 @@
-use std::{
-    error, fmt,
-    num::{ParseFloatError, ParseIntError},
-    str::Utf8Error,
-    string::FromUtf8Error,
-};
+use std::{error, fmt};
 
 use crate::{
     scanner::{
-        position::Position,
+        span::Span,
         token::{Token, TokenKind},
     },
-    TagKind,
+    TagName,
 };
 
 /// Parse Error.
 #[derive(Debug)]
 pub struct Error {
-    kind: ErrorKind,
-    start: Position,
-    end: Position,
-}
-
-pub trait FromError<E> {
-    fn from_err(value: E, start: Position, end: Position) -> Self;
-    fn convert<T>(value: Result<T, E>, start: Position, end: Position) -> Result<T, Self>
-    where
-        Self: Sized,
-    {
-        match value {
-            Ok(x) => Ok(x),
-            Err(e) => Err(Self::from_err(e, start, end)),
-        }
-    }
+    pub(crate) kind: ErrorKind,
+    pub(crate) span: Span,
 }
 
 impl error::Error for Error {}
 
 impl fmt::Display for Error {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
-    }
-}
-
-impl FromError<Utf8Error> for Error {
-    fn from_err(value: Utf8Error, start: Position, end: Position) -> Self {
-        Self {
-            kind: ErrorKind::Utf8Error {
-                error_len: value.error_len(),
-                valid_up_to: value.valid_up_to(),
-            },
-            start,
-            end,
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            ErrorKind::UnexpectedToken(found, expected) => {
+                if let Some(expected) = expected {
+                    f.write_fmt(format_args!(
+                        "Unexpected Token: {found:?}, expected {expected:?} at {}",
+                        self.span
+                    ))?;
+                } else {
+                    f.write_fmt(format_args!("Unexpected Token: {found:?} at {}", self.span))?;
+                }
+            }
+            ErrorKind::MisMatchedTags(open, close) => f.write_fmt(format_args!(
+                "Mismatched closing tag </{close:?}> for <{open:?}> at {}",
+                self.span
+            ))?,
+            ErrorKind::InvalidNumber => {
+                f.write_fmt(format_args!("Invalid Number at {}", self.span))?;
+            }
+            ErrorKind::UnexpectedEof => {
+                f.write_fmt(format_args!("Unexpected Eof at {}", self.span))?;
+            }
+            ErrorKind::UnknownToken(s) => {
+                f.write_fmt(format_args!("Unknown Token: {s} at {}", self.span))?;
+            }
         }
-    }
-}
-
-impl From<FromUtf8Error> for Error {
-    fn from(value: FromUtf8Error) -> Self {
-        let value = value.utf8_error();
-        Self {
-            kind: ErrorKind::Utf8Error {
-                error_len: value.error_len(),
-                valid_up_to: value.valid_up_to(),
-            },
-            start: Position::new(0, 0),
-            end: Position::new(0, 0),
-        }
-    }
-}
-
-impl FromError<ParseIntError> for Error {
-    fn from_err(value: ParseIntError, start: Position, end: Position) -> Self {
-        let _ = value;
-        Self {
-            kind: ErrorKind::InvalidNumber,
-            start,
-            end,
-        }
-    }
-}
-
-impl FromError<ParseFloatError> for Error {
-    fn from_err(value: ParseFloatError, start: Position, end: Position) -> Self {
-        let _ = value;
-        Self {
-            kind: ErrorKind::InvalidNumber,
-            start,
-            end,
-        }
-    }
-}
-
-impl FromError<ErrorKind> for Error {
-    fn from_err(value: ErrorKind, start: Position, end: Position) -> Self {
-        Self {
-            kind: value,
-            start,
-            end,
-        }
+        Ok(())
     }
 }
 
 impl Error {
-    pub(crate) fn new(kind: ErrorKind, token: Token) -> Self {
+    /// Creates a new `Error` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - The kind of error.
+    /// * `token` - The token associated with the error.
+    ///
+    /// # Returns
+    ///
+    /// A new `Error` instance.
+    pub(crate) fn new(kind: ErrorKind, token: &Token) -> Self {
         Self {
             kind,
-            start: token.start_pos,
-            end: token.end_pos,
+            span: token.span.clone(),
         }
     }
 }
 
 #[non_exhaustive]
-#[derive(Debug)]
-#[allow(missing_docs)]
+#[derive(Debug, PartialEq)]
+/// Represents the different kinds of parse errors.
 pub enum ErrorKind {
-    UnexpectedToken {
-        expected: TokenKind,
-        found: TokenKind,
-    },
-    WrongClosingTag {
-        expected: TagKind,
-        found: TagKind,
-    },
-    Utf8Error {
-        error_len: Option<usize>,
-        valid_up_to: usize,
-    },
+    /// An unexpected token was encountered.
+    UnexpectedToken(TokenKind, Option<TokenKind>),
+    /// An unknown token was encountered.
+    UnknownToken(String),
+    /// Mismatched opening and closing tags.
+    MisMatchedTags(TagName, TagName),
+    /// An invalid number was encountered.
     InvalidNumber,
-    UnexpectedTag,
+    /// An unexpected end of file was encountered.
     UnexpectedEof,
 }

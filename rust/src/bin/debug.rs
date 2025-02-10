@@ -7,14 +7,14 @@ fn debug(source: &str, out: &mut impl Write) {
     let mut line = 0;
     loop {
         let token = scanner.scan_token().unwrap();
-        let content = if token.err_code == 0 {
+        let content = if token.custom == 0 {
             token.content
         } else {
             "Unexpected character."
         };
-        if token.start_pos.line != line {
-            let _ = write!(out, "{:4} ", token.start_pos.line);
-            line = token.start_pos.line;
+        if token.span[0].0 != line {
+            let _ = write!(out, "{:4} ", token.span[0].0);
+            line = token.span[0].0;
         } else {
             let _ = write!(out, "   | ");
         }

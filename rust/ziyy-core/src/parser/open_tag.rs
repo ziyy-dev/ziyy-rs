@@ -1,263 +1,140 @@
+use super::parse_chunk::Chunk;
+use super::tag::Value;
+use super::{inherit, Parser, Tag, TagName, TagType, BUILTIN_TAGS};
+use crate::num::str_to_u32;
+use crate::{get_num2, Error, ErrorKind};
 use std::io::Write;
-
-use crate::color::rgb::Rgb;
-use crate::color::{ansi_style::AnsiStyle, channel::Channel, Color};
-use crate::error::ErrorKind;
-use crate::value::{B, I, S, U};
-use crate::{own, Error};
-
-use super::{inherit, write_attribs::Attrib, Parser, Tag, TagKind};
 
 impl<T: AsRef<str>> Parser<T> {
     pub(crate) fn parse_open_tag(&mut self, mut tag: Tag) -> Result<(), Error> {
-        match tag.kind {
-            TagKind::A => {
-                let tag2 = self.parse_tag()?;
-                Self::expect_tag(&tag2, TagKind::Text, ErrorKind::UnexpectedTag)?;
-
+        match tag.name {
+            TagName::A => {
                 let _ = self.buf.write(b"\x1b]8;;");
-                let _ = self.buf.write(
-                    tag.href
-                        .as_ref()
-                        .unwrap_or(&Some(String::new()))
-                        .as_ref()
-                        .unwrap()
-                        .as_bytes(),
-                );
+                let _ = self.buf.write(if let Value::Some(ref href) = tag.custom {
+                    href.as_bytes()
+                } else {
+                    "".as_bytes()
+                });
                 let _ = self.buf.write(b"\x1b\\");
-                let _ = self.buf.write(tag2.text.unwrap_or_default().as_bytes());
-                let _ = self.buf.write(b"\x1b]8;;\x1b\\");
-
-                let tag2 = self.parse_tag()?;
-                Self::expect_tag(&tag2, TagKind::A, ErrorKind::UnexpectedTag)?;
-            }
-
-            TagKind::Any(ref s) => {
-                let val = self.bindings.as_ref().unwrap().get(s);
-                let mut ansi = AnsiStyle::new();
-                if let Some(btag) = val {
-                    inherit(btag, &mut tag);
-                    self.write_attribs(
-                        &mut tag,
-                        &mut ansi,
-                        &[
-                            Attrib::B,
-                            Attrib::C,
-                            Attrib::I,
-                            Attrib::S,
-                            Attrib::U,
-                            Attrib::X,
-                        ],
-                    )?;
-                }
-
-                self.write_and_save(tag.kind, ansi);
-            }
-
-            TagKind::B => {
-                let mut ansi = AnsiStyle::new();
-                ansi.add_style(B);
-
-                self.write_attribs(
-                    &mut tag,
-                    &mut ansi,
-                    &[
-                        Attrib::Src,
-                        Attrib::C,
-                        Attrib::I,
-                        Attrib::S,
-                        Attrib::U,
-                        Attrib::X,
-                    ],
-                )?;
-
-                self.write_and_save(tag.kind, ansi);
-            }
-
-            TagKind::Br => {
-                self.write_nl(tag)?;
-            }
-
-            TagKind::C => {
-                let mut ansi = AnsiStyle::new();
-                if let Some(ref color_info) = tag.color {
-                    let color = if color_info.0 == "rgb" {
-                        let rgb = Rgb::try_from(color_info.0.as_str())?;
-                        Color::from((rgb, Channel::Foreground))
-                    } else {
-                        if color_info.1 == Some(own!("light")) {
-                            ansi.add_style(B);
+                loop {
+                    let chunk = self.parse_chunk()?;
+                    match chunk {
+                        Chunk::Comment(_) => {}
+                        Chunk::Escape(_) => {}
+                        Chunk::Tag(tag2) => {
+                            if tag2.name == TagName::A && tag2.r#type == TagType::Close {
+                                break;
+                            }
                         }
-                        Color::try_from((color_info.0.as_str(), Channel::Foreground))?
-                    };
-                    let buf: Vec<u8> = color.into();
-                    ansi.add_style(buf);
+
+                        Chunk::Text(text) => {
+                            let _ = self.buf.write(text.as_bytes());
+                        }
+
+                        Chunk::WhiteSpace(ws) => {
+                            let _ = self.buf.write(ws.as_bytes());
+                        }
+
+                        Chunk::Eof => {
+                            return Err(Error {
+                                kind: ErrorKind::UnexpectedEof,
+                                span: tag.span,
+                            });
+                        }
+                    }
+                    let _ = self.buf.write(b"\x1b]8;;\x1b\\");
+                }
+            }
+
+            TagName::Any(ref s) => {
+                let src = self.bindings.as_ref().unwrap().get(s);
+                if let Some(btag) = src {
+                    inherit(btag, &mut tag.style);
                 }
 
-                self.write_attribs(
-                    &mut tag,
-                    &mut ansi,
-                    &[Attrib::B, Attrib::I, Attrib::S, Attrib::U, Attrib::X],
-                )?;
-
-                self.write_and_save(tag.kind, ansi);
+                self.write_and_save(&tag.name, tag.style);
             }
 
-            TagKind::E => {
-                if let Some(style) = self.state.previous_save() {
-                    let _ = self.buf.write(&style.to_bytes());
+            TagName::B
+            | TagName::D
+            | TagName::I
+            | TagName::U
+            | TagName::K
+            | TagName::R
+            | TagName::H
+            | TagName::S
+            | TagName::C
+            | TagName::X
+            | TagName::Ziyy => {
+                if tag.name == TagName::U {
+                    self.clear_under = true;
                 }
 
-                let ansi = AnsiStyle::new();
-                self.state.push(tag.kind, ansi);
+                if let Value::Some(ref s) = tag.src {
+                    let src = BUILTIN_TAGS.get(s);
+                    if let Some(btag) = src {
+                        inherit(btag, &mut tag.style);
+                    } else {
+                        let src = self.bindings.as_ref().unwrap().get(s);
+                        if let Some(btag) = src {
+                            inherit(btag, &mut tag.style);
+                        }
+                    }
+                }
+                self.write_and_save(&tag.name, tag.style);
             }
 
-            TagKind::Eof => {}
-
-            TagKind::I => {
-                let mut ansi = AnsiStyle::new();
-                ansi.add_style(I);
-
-                self.write_attribs(
-                    &mut tag,
-                    &mut ansi,
-                    &[
-                        Attrib::Src,
-                        Attrib::B,
-                        Attrib::C,
-                        Attrib::S,
-                        Attrib::U,
-                        Attrib::X,
-                    ],
-                )?;
-
-                self.write_and_save(tag.kind, ansi);
+            TagName::Br => {
+                if let Value::Some(val) = tag.custom {
+                    let n: usize = get_num2!(str_to_u32(&val, 10), tag) as usize;
+                    let _ = self.buf.write("\n".repeat(n).as_bytes());
+                } else {
+                    let _ = self.buf.write("\n".as_bytes());
+                }
             }
 
-            TagKind::Let => {}
+            TagName::E => {
+                // TODO: correct implementation
+                if let Some(style) = self.state.previous_style() {
+                    let _ = self.buf.write(&style.to_string().into_bytes());
+                }
 
-            TagKind::P => {
-                if self.first_print_char {
-                    self.first_print_char = false;
+                self.state.push(tag.name, tag.style.clone(), tag.style);
+            }
+
+            TagName::Let => {} // TODO:
+
+            TagName::P => {
+                if self.skip_ws {
+                    self.skip_ws = false;
                 } else {
                     let _ = self.buf.write("\n".as_bytes());
                 }
 
-                let mut ansi = AnsiStyle::new();
-
-                self.write_attribs(
-                    &mut tag,
-                    &mut ansi,
-                    &[
-                        Attrib::Src,
-                        Attrib::Tab,
-                        Attrib::B,
-                        Attrib::C,
-                        Attrib::I,
-                        Attrib::S,
-                        Attrib::U,
-                        Attrib::X,
-                    ],
-                )?;
-
-                self.write_and_save(tag.kind, ansi);
-
-                loop {
-                    let tag2 = self.parse_next_tag()?;
-                    if tag2.kind != TagKind::WhiteSpace {
-                        break;
+                if let Value::Some(ref s) = tag.src {
+                    let src = self.bindings.as_ref().unwrap().get(s);
+                    if let Some(btag) = src {
+                        inherit(btag, &mut tag.style);
                     }
-                    self.parse_tag()?;
-                }
-            }
-
-            TagKind::S => {
-                let mut ansi = AnsiStyle::new();
-                ansi.add_style(S);
-
-                self.write_attribs(
-                    &mut tag,
-                    &mut ansi,
-                    &[
-                        Attrib::Src,
-                        Attrib::B,
-                        Attrib::C,
-                        Attrib::I,
-                        Attrib::U,
-                        Attrib::X,
-                    ],
-                )?;
-
-                self.write_and_save(tag.kind, ansi);
-            }
-
-            TagKind::Text => {}
-
-            TagKind::U => {
-                let mut ansi = AnsiStyle::new();
-                ansi.add_style(U);
-
-                self.write_attribs(
-                    &mut tag,
-                    &mut ansi,
-                    &[
-                        Attrib::Src,
-                        Attrib::B,
-                        Attrib::C,
-                        Attrib::I,
-                        Attrib::S,
-                        Attrib::X,
-                    ],
-                )?;
-
-                self.write_and_save(tag.kind, ansi);
-            }
-
-            TagKind::X => {
-                let mut ansi = AnsiStyle::new();
-                if let Some(ref color_info) = tag.color {
-                    let color = if color_info.0 != "rgb" {
-                        let rgb = Rgb::try_from(color_info.0.as_str())?;
-                        Color::from((rgb, Channel::Background))
-                    } else {
-                        /* if color_info.1 == Some(own!("light")) {
-                            ansi.add_style(B);
-                        } */
-                        Color::try_from((color_info.0.as_str(), Channel::Background))?
-                    };
-                    let buf: Vec<u8> = color.into();
-                    ansi.add_style(buf);
                 }
 
-                self.write_attribs(
-                    &mut tag,
-                    &mut ansi,
-                    &[Attrib::C, Attrib::I, Attrib::S, Attrib::U],
-                )?;
+                match tag.custom {
+                    Value::Bool => {
+                        let _ = self.buf.write("\t".as_bytes());
+                    }
 
-                self.write_and_save(tag.kind, ansi);
+                    Value::Some(val) => {
+                        let n: usize = get_num2!(str_to_u32(&val, 10), tag) as usize;
+                        let _ = self.buf.write(" ".repeat(n).as_bytes());
+                    }
+
+                    Value::None => {}
+                }
+
+                self.write_and_save(&tag.name, tag.style);
+
+                self.skip_ws = true;
             }
-
-            TagKind::Ziyy => {
-                let mut ansi = AnsiStyle::new();
-
-                self.write_attribs(
-                    &mut tag,
-                    &mut ansi,
-                    &[
-                        Attrib::B,
-                        Attrib::C,
-                        Attrib::I,
-                        Attrib::S,
-                        Attrib::U,
-                        Attrib::X,
-                    ],
-                )?;
-
-                self.write_and_save(tag.kind, ansi);
-            }
-
-            _ => {}
         }
 
         Ok(())

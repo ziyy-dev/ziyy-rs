@@ -1,63 +1,44 @@
 #![allow(missing_docs)]
 
-use crate::scanner::position::Position;
-pub type Value<T> = Option<Option<T>>;
+use crate::{scanner::span::Span, style::Style};
 
 #[derive(PartialEq, Debug, Clone)]
+pub enum Value {
+    Bool,
+    Some(String),
+    None,
+}
+
+/// Ziyy Tag.
+#[derive(PartialEq, Debug, Clone)]
 pub struct Tag {
+    /// Name of Tag.
+    pub name: TagName,
+    /// Type of Tag.
     pub r#type: TagType,
-    pub kind: TagKind,
-    pub text: Option<String>,
+    /// Custom information.
+    pub custom: Value,
+    /// Style information of the Tag.
+    pub style: Style,
+    /// Inherit from Tag with name.
+    pub src: Value,
 
-    /* Attributes */
-    pub b: Value<String>,
-    pub c: Value<String>,
-    pub i: Value<String>,
-    pub n: Value<String>,
-    pub s: Value<String>,
-    pub u: Value<String>,
-    pub x: Value<String>,
-
-    /* Link */
-    pub href: Value<String>,
-
-    /* Color */
-    pub color: Option<(String, Option<String>)>,
-
-    /* Binding */
-    pub name: Value<String>,
-
-    /* Tab */
-    pub tab: Value<String>,
-    /* Value */
-    pub src: Value<String>,
-
-    pub(crate) start: Position,
-    pub(crate) end: Position,
+    pub(crate) span: Span,
 }
 
 impl Tag {
     /// Creates new Tag
-    #[must_use] pub fn new(kind: TagKind, r#type: TagType) -> Self {
+    #[must_use]
+    pub fn new(name: TagName, r#type: TagType) -> Self {
+        use Value::None;
         Self {
             r#type,
-            kind,
-            text: None,
-            b: None,
-            c: None,
-            i: None,
-            n: None,
-            s: None,
-            u: None,
-            x: None,
-            href: None,
-            color: None,
-            name: None,
-            tab: None,
+            name,
+            custom: None,
+            style: Style::default(),
             src: None,
 
-            start: Position::new(0, 0),
-            end: Position::new(0, 0),
+            span: Span::default(),
         }
     }
 }
@@ -70,22 +51,22 @@ pub enum TagType {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum TagKind {
+pub enum TagName {
     A,
     Any(String),
     B,
     Br,
     C,
     E,
-    Eof,
     I,
     Let,
-    None,
     P,
     S,
-    Text,
     U,
     X,
-    WhiteSpace,
     Ziyy,
+    D,
+    H,
+    K,
+    R,
 }

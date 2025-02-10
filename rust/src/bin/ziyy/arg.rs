@@ -1,93 +1,113 @@
+#![allow(dead_code)]
 use std::env::Args;
 
 #[derive(Debug)]
-pub struct Arg {
-    pub r#type: ArgType,
-    pub key: String,
-    pub value: Option<String>,
+pub enum Arg {
+    ShortFlag(String, String),
+    LongFlag(String, String),
+    ShortSwitch(String),
+    LongSwitch(String),
+    Param(String),
 }
 
 #[derive(Debug)]
-pub enum ArgType {
-    Param,
-    Flag,
+pub enum Error {
+    Long(String),
+    Short(String),
+}
+
+pub struct Cli<'a> {
+    pub short_flags: Vec<&'a str>,
+    pub long_flags: Vec<&'a str>,
+    pub short_switches: Vec<&'a str>,
+    pub long_switches: Vec<&'a str>,
 }
 
 fn split_args(args0: Args) -> Vec<String> {
-    let mut args = vec![];
+    let mut args: Vec<String> = vec![];
 
     for arg in args0 {
         if let Some(ch) = arg.strip_prefix('-') {
-            if arg.chars().nth(1) != Some('-') {
-                let _: Vec<_> = ch
-                    .chars()
-                    .map(|v| {
-                        let mut s = String::with_capacity(2);
-                        s.push('-');
-                        s.push(v);
-                        args.push(s)
-                    })
-                    .collect();
-            } else {
-                args.push(arg);
+            if ch.chars().nth(0) == Some('-') {
+                args.push(arg.clone());
+                continue;
             }
-        } else {
-            args.push(arg);
+
+            let _: Vec<_> = ch.chars().map(|v| args.push(format!("-{v}"))).collect();
+            continue;
         }
+
+        args.push(arg.clone());
     }
 
     args
 }
 
-pub fn parse_args(args0: Args) -> Vec<Arg> {
-    let args0 = split_args(args0);
+pub fn parse_args(args0: Args, cli: Cli) -> Result<Vec<Arg>, Error> {
+    let _args0 = split_args(args0);
+    let mut parts = _args0.split(|x| x == "--");
+    let args0 = parts.next().unwrap();
     let mut args = vec![];
 
     let mut i = 0;
     let length = args0.len();
     while i < length {
-        let mut arg = args0[i].as_str();
-        if arg.starts_with("--") {
-            let mut value = None;
-            let argv: Vec<_>;
+        let arg = args0[i].clone();
+        if let Some(arg) = arg.strip_prefix("--") {
             if arg.contains('=') {
-                argv = arg.split('=').collect();
-                arg = argv[0];
-                value = Some(argv[1].to_owned());
-            } else if let Some(v) = args0.get(i + 1) {
-                if !v.starts_with('-') {
-                    value = Some(v.clone());
+                let mut split = arg.split('=');
+                let key = split.next().unwrap();
+                let value = split.collect::<Vec<_>>().join("=");
+                if cli.long_flags.contains(&key) {
+                    args.push(Arg::LongFlag(key.to_owned(), value));
+                } else {
+                    return Err(Error::Long(key.to_owned()));
+                }
+            } else {
+                let key = arg;
+                if cli.long_flags.contains(&key) {
+                    args.push(Arg::LongFlag(key.to_owned(), args0[i + 1].clone()));
                     i += 1;
+                } else if cli.long_switches.contains(&key) {
+                    args.push(Arg::LongSwitch(key.to_owned()));
+                } else {
+                    return Err(Error::Long(key.to_owned()));
                 }
             }
-            args.push(Arg {
-                r#type: ArgType::Flag,
-                key: arg[2..].to_owned(),
-                value,
-            });
-        } else if let Some(ch) = arg.strip_prefix('-') {
-            let mut value = None;
-            if let Some(v) = args0.get(i + 1) {
-                if !v.starts_with('-') {
-                    value = Some(v.clone());
+        } else if let Some(arg) = arg.strip_prefix("-") {
+            if arg.contains('=') {
+                let mut split = arg.split('=');
+                let key = split.next().unwrap();
+                let value = split.collect::<Vec<_>>().join("=");
+                if cli.short_flags.contains(&key) {
+                    args.push(Arg::ShortFlag(key.to_owned(), value));
+                } else {
+                    return Err(Error::Short(key.to_owned()));
+                }
+            } else {
+                let key = arg;
+                if cli.short_flags.contains(&key) {
+                    args.push(Arg::ShortFlag(key.to_owned(), args0[i + 1].clone()));
                     i += 1;
+                } else if cli.short_switches.contains(&key) {
+                    args.push(Arg::ShortSwitch(key.to_owned()));
+                } else {
+                    return Err(Error::Short(key.to_owned()));
                 }
             }
-            args.push(Arg {
-                r#type: ArgType::Flag,
-                key: ch.to_owned(),
-                value,
-            });
         } else {
-            args.push(Arg {
-                r#type: ArgType::Param,
-                key: arg.to_owned(),
-                value: None,
-            });
+            args.push(Arg::Param(arg));
         }
-
         i += 1;
     }
 
-    args
+    args.extend(
+        parts
+            .collect::<Vec<_>>()
+            .join(&String::from("--"))
+            .iter()
+            .map(|x| Arg::Param(x.clone())),
+    );
+
+    Ok(args)
 }

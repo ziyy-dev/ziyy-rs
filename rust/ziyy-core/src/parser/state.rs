@@ -1,46 +1,43 @@
-use crate::color::ansi_style::AnsiStyle;
+use crate::style::Style;
 
-use super::tag::TagKind;
+use super::tag::TagName;
 
-pub struct State {
-    tags: Vec<TagKind>,
-    saves: Vec<AnsiStyle>,
-}
+pub struct State(Vec<(TagName, Style, Style)>);
 
 impl State {
     pub fn new() -> State {
-        State {
-            tags: vec![TagKind::Ziyy],
-            saves: vec![AnsiStyle { inner: vec![0] }],
-        }
+        State(vec![(TagName::Ziyy, Style::new(), Style::new())])
     }
 
-    pub fn push(&mut self, tag: TagKind, style: AnsiStyle) {
-        let l = self.saves.len() - 1;
-        let mut ansi = self.saves.get(l).unwrap().clone();
-        ansi.push(&style);
-        self.saves.push(ansi);
-        self.tags.push(tag);
+    #[cfg(test)]
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 1
     }
 
-    pub fn pop(&mut self) -> (Option<TagKind>, Option<AnsiStyle>) {
-        let a = self.tags.pop();
-        let b = self.saves.pop();
-        (a, b)
+    pub fn push(&mut self, tag_name: TagName, style: Style, delta: Style) {
+        let l = self.0.len() - 1;
+        let mut pstyle = self.0.get(l).unwrap().clone().1;
+        // println!("{style:?}");
+        pstyle.add(style);
+        self.0.push((tag_name, pstyle, delta));
     }
 
-    pub fn current_tag(&self) -> Option<&TagKind> {
-        let l = self.tags.len() - 1;
-        self.tags.get(l)
+    pub fn pop(&mut self) -> Option<(TagName, Style, Style)> {
+        self.0.pop()
     }
 
-    pub fn current_save(&self) -> Option<&AnsiStyle> {
-        let l = self.saves.len() - 1;
-        self.saves.get(l)
+    pub fn current_tag_name(&self) -> Option<&TagName> {
+        let i = self.0.len() - 1;
+        self.0.get(i).map(|x| &x.0)
     }
 
-    pub fn previous_save(&self) -> Option<&AnsiStyle> {
-        let l = self.saves.len() - 2;
-        self.saves.get(l)
+    pub fn current_style(&self) -> Option<&Style> {
+        let i = self.0.len() - 1;
+        self.0.get(i).map(|x| &x.1)
+    }
+
+    pub fn previous_style(&self) -> Option<&Style> {
+        let i = self.0.len() - 1;
+        self.0.get(i).map(|x| &x.1)
     }
 }
