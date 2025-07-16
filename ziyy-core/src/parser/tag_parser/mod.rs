@@ -120,7 +120,6 @@ macro_rules! assign_prop_duoeffect {
 pub struct TagParser {
     #[allow(dead_code)]
     parse_placeholders: bool,
-    stack: Vec<Tag>,
 }
 
 impl Default for TagParser {
@@ -131,10 +130,7 @@ impl Default for TagParser {
 
 impl TagParser {
     pub fn new(parse_placeholders: bool) -> Self {
-        Self {
-            parse_placeholders,
-            stack: Vec::with_capacity(8),
-        }
+        Self { parse_placeholders }
     }
 
     pub fn parse(&mut self, source: Fragment) -> Result<Tag, Error> {
@@ -384,24 +380,6 @@ impl TagParser {
 
                 _ => {
                     consume_declaration!(tag, next, token);
-                }
-            }
-        }
-
-        match tag.r#type {
-            TagType::Open => {
-                self.stack.push(tag.clone());
-            }
-            TagType::SelfClose => {}
-            TagType::Close => {
-                if let Some(last) = self.stack.pop() {
-                    if last.name() != tag.name() {
-                        return Err(Error::new(
-                            ErrorType::InvalidTag,
-                            format!("Mismatched tag: {:?} {:?}", tag.name(), last.name()),
-                            token.span,
-                        ));
-                    }
                 }
             }
         }

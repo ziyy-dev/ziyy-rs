@@ -13,4 +13,4 @@ categories = ["command-line-interface", "command-line-utilities"]
 members = ["ziyy-core", "ziyy-proc"]
 
 [dependencies]
-ziyy-core = { path = "ziyy-core", version = "0.1.0" }
+ziyy-core = { path = "ziyy-core", version = "0.1.0", features = ["unstable"] }

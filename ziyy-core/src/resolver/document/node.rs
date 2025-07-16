@@ -14,19 +14,19 @@ struct Kin {
     children: Option<(u32, u32)>,
 }
 
-pub type RNode = Rc<Node>;
+pub type RNode<'a> = Rc<Node<'a>>;
 
 #[derive(Debug, Clone)]
-#[doc(hidden)]
-pub struct Node {
+
+pub struct Node<'a> {
     pub(super) id: u32,
     kin: RefCell<Kin>,
-    doc: Weak<Document>,
-    chunk: RefCell<Chunk>,
+    doc: Weak<Document<'a>>,
+    chunk: RefCell<Chunk<'a>>,
 }
 
-impl Node {
-    pub fn new(id: u32, chunk: Chunk, doc: Weak<Document>) -> Self {
+impl<'a> Node<'a> {
+    pub fn new(id: u32, chunk: Chunk<'a>, doc: Weak<Document<'a>>) -> Self {
         Self {
             id,
             kin: RefCell::new(Kin {
@@ -44,16 +44,16 @@ impl Node {
         self.id
     }
 
-    pub fn doc(&self) -> Rc<Document> {
+    pub fn doc(&self) -> Rc<Document<'a>> {
         self.doc.upgrade().unwrap()
     }
 
     /// Returns the chunk of this node.
-    pub fn chunk<'a>(self: &'a RNode) -> &'a RefCell<Chunk> {
+    pub fn chunk<'b>(self: &'b RNode<'a>) -> &'b RefCell<Chunk<'a>> {
         &self.chunk
     }
 
-    fn axis<F>(&self, f: F) -> Option<RNode>
+    fn axis<F>(&self, f: F) -> Option<RNode<'a>>
     where
         F: FnOnce(Ref<Kin>) -> Option<u32>,
     {
@@ -91,13 +91,13 @@ impl Node {
     }
 
     /// Appends a new child to this node.
-    pub fn append(&self, value: Chunk) -> RNode {
+    pub fn append(&self, value: Chunk<'a>) -> RNode<'a> {
         let id = self.doc().orphan(value).id;
         self.append_id(id)
     }
 
     /// Prepends a new child to this node.
-    pub fn prepend(&self, value: Chunk) -> RNode {
+    pub fn prepend(&self, value: Chunk<'a>) -> RNode<'a> {
         let id = self.doc().orphan(value).id;
         self.prepend_id(id)
     }
@@ -107,7 +107,7 @@ impl Node {
     /// # Panics
     ///
     /// Panics if this node is an orphan.
-    pub fn insert_before(&self, value: Chunk) -> RNode {
+    pub fn insert_before(&self, value: Chunk<'a>) -> RNode<'a> {
         let id = self.doc().orphan(value).id;
         self.insert_id_before(id)
     }
@@ -117,7 +117,7 @@ impl Node {
     /// # Panics
     ///
     /// Panics if this node is an orphan.
-    pub fn insert_after(&self, value: Chunk) -> RNode {
+    pub fn insert_after(&self, value: Chunk<'a>) -> RNode<'a> {
         let id = self.doc().orphan(value).id;
         self.insert_id_after(id)
     }
@@ -163,7 +163,7 @@ impl Node {
     }
 
     /// Appends a child to this node.
-    pub fn append_id(&self, new_child_id: u32) -> RNode {
+    pub fn append_id(&self, new_child_id: u32) -> RNode<'a> {
         assert_ne!(
             self.id, new_child_id,
             "Cannot append node as a child to itself"
@@ -196,7 +196,7 @@ impl Node {
     }
 
     /// Prepends a child to this node.
-    pub fn prepend_id(&self, new_child_id: u32) -> RNode {
+    pub fn prepend_id(&self, new_child_id: u32) -> RNode<'a> {
         assert_ne!(
             self.id, new_child_id,
             "Cannot prepend node as a child to itself"
@@ -232,7 +232,7 @@ impl Node {
     ///
     /// - Panics if `new_sibling_id` is not valid.
     /// - Panics if this node is an orphan.
-    pub fn insert_id_before(&self, new_sibling_id: u32) -> RNode {
+    pub fn insert_id_before(&self, new_sibling_id: u32) -> RNode<'a> {
         assert_ne!(
             self.id, new_sibling_id,
             "Cannot insert node as a sibling of itself"
@@ -277,7 +277,7 @@ impl Node {
     ///
     /// - Panics if `new_sibling_id` is not valid.
     /// - Panics if this node is an orphan.
-    pub fn insert_id_after(&self, new_sibling_id: u32) -> RNode {
+    pub fn insert_id_after(&self, new_sibling_id: u32) -> RNode<'a> {
         assert_ne!(
             self.id, new_sibling_id,
             "Cannot insert node as a sibling of itself"
@@ -355,7 +355,7 @@ impl Node {
     }
 }
 
-impl PartialEq for Node {
+impl<'a> PartialEq for Node<'a> {
     fn eq(&self, other: &Self) -> bool {
         let kin = self.kin.borrow();
         let other_kin = other.kin.borrow();
@@ -368,4 +368,4 @@ impl PartialEq for Node {
     }
 }
 
-impl Eq for Node {}
+impl<'a> Eq for Node<'a> {}

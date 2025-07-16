@@ -3,12 +3,12 @@ use std::{ops::Deref, rc::Rc};
 use super::Node;
 
 #[derive(Debug)]
-pub struct Children {
-    front: Option<Rc<Node>>,
-    back: Option<Rc<Node>>,
+pub struct Children<'a> {
+    front: Option<Rc<Node<'a>>>,
+    back: Option<Rc<Node<'a>>>,
 }
 
-impl Clone for Children {
+impl<'a> Clone for Children<'a> {
     fn clone(&self) -> Self {
         Self {
             front: self.front.clone(),
@@ -17,8 +17,8 @@ impl Clone for Children {
     }
 }
 
-impl Iterator for Children {
-    type Item = Rc<Node>;
+impl<'a> Iterator for Children<'a> {
+    type Item = Rc<Node<'a>>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.front == self.back {
             let node = self.front.take();
@@ -37,16 +37,16 @@ impl Iterator for Children {
 
 /// Open or close edge of a node.
 #[derive(Debug, Clone)]
-pub enum Edge {
+pub enum Edge<'a> {
     /// Open.
-    Open(Rc<Node>),
+    Open(Rc<Node<'a>>),
     /// Close.
-    Close(Rc<Node>),
+    Close(Rc<Node<'a>>),
 }
 
-impl Eq for Edge {}
+impl<'a> Eq for Edge<'a> {}
 
-impl PartialEq for Edge {
+impl<'a> PartialEq for Edge<'a> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Edge::Open(a), Edge::Open(b)) | (Edge::Close(a), Edge::Close(b)) => a == b,
@@ -57,13 +57,13 @@ impl PartialEq for Edge {
 
 /// Iterator which traverses a subtree.
 #[derive(Debug, Clone)]
-pub struct Traverse {
-    root: Option<Rc<Node>>,
-    edge: Option<Edge>,
+pub struct Traverse<'a> {
+    root: Option<Rc<Node<'a>>>,
+    edge: Option<Edge<'a>>,
 }
 
-impl Iterator for Traverse {
-    type Item = Edge;
+impl<'a> Iterator for Traverse<'a> {
+    type Item = Edge<'a>;
     fn next(&mut self) -> Option<Self::Item> {
         match &self.edge {
             None => {
@@ -95,16 +95,16 @@ impl Iterator for Traverse {
 
 /// Iterator over a node and its descendants.
 #[derive(Debug)]
-pub struct Descendants(Traverse);
+pub struct Descendants<'a>(Traverse<'a>);
 
-impl Clone for Descendants {
+impl<'a> Clone for Descendants<'a> {
     fn clone(&self) -> Self {
         Descendants(self.0.clone())
     }
 }
 
-impl Iterator for Descendants {
-    type Item = Rc<Node>;
+impl<'a> Iterator for Descendants<'a> {
+    type Item = Rc<Node<'a>>;
     fn next(&mut self) -> Option<Self::Item> {
         for edge in &mut self.0 {
             if let Edge::Open(node) = edge {
@@ -120,15 +120,15 @@ macro_rules! axis_iterators {
         $(
             #[$m]
             #[derive(Debug)]
-            pub struct $i(Option<Rc<Node>>);
-            impl Clone for $i {
+            pub struct $i<'a>(Option<Rc<Node<'a>>>);
+            impl<'a> Clone for $i<'a> {
                 fn clone(&self) -> Self {
                     $i(self.0.clone())
                 }
             }
 
-            impl Iterator for $i {
-                type Item = Rc<Node>;
+            impl<'a> Iterator for $i<'a> {
+                type Item = Rc<Node<'a>>;
                 fn next(&mut self) -> Option<Self::Item> {
                     let node = self.0.take();
                     self.0 = node.as_ref().map(|x| x.deref()).and_then($f);
@@ -156,9 +156,9 @@ axis_iterators! {
     LastChildren(Node::last_child);
 }
 
-impl Node {
+impl<'a> Node<'a> {
     /// Returns an iterator over children.
-    pub fn children(&self) -> Children {
+    pub fn children(&self) -> Children<'a> {
         Children {
             front: self.first_child(),
             back: self.last_child(),
@@ -166,7 +166,7 @@ impl Node {
     }
 
     /// Returns an iterator which traverses the subtree starting at this node.
-    pub fn traverse(self: &Rc<Node>) -> Traverse {
+    pub fn traverse(self: &Rc<Node<'a>>) -> Traverse<'a> {
         Traverse {
             root: Some(self.clone()),
             edge: None,
@@ -174,12 +174,12 @@ impl Node {
     }
 
     /// Returns an iterator over this node and its descendants.
-    pub fn descendants(self: &Rc<Node>) -> Descendants {
+    pub fn descendants(self: &Rc<Node<'a>>) -> Descendants<'a> {
         Descendants(self.traverse())
     }
 
     /// Returns an iterator over ancestors.
-    pub fn ancestors(self: &Rc<Node>) -> Ancestors {
+    pub fn ancestors(self: &Rc<Node<'a>>) -> Ancestors<'a> {
         Ancestors(Some(self.clone()))
     }
 }

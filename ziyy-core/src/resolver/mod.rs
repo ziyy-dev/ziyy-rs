@@ -1,13 +1,13 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{borrow::Cow, collections::HashMap, rc::Rc};
 
 use crate::{
-    Fragment, FragmentType, WordParser,
+    Error, ErrorType, Fragment, FragmentType, Result, WordParser,
     builtin::{BUILTIN_STYLES, BUILTIN_TAGS},
     common::Span,
     parser::{
         ansi::Ansi,
         chunk::{Chunk, ChunkData},
-        tag_parer::tag::{Tag, TagType},
+        tag_parser::tag::{Tag, TagType},
     },
     splitter::is_whitespace,
 };
@@ -15,63 +15,86 @@ use document::{Document, Node};
 
 pub mod document;
 
-#[doc(hidden)]
-pub struct Resolver {
+pub struct Resolver<'a> {
     ansi_only: bool,
-    tables: Vec<Rc<Node>>,
+    tables: Vec<Rc<Node<'a>>>,
+    tree: Rc<Document<'a>>,
 }
 
-impl Resolver {
+impl<'a> Resolver<'a> {
     pub fn new(ansi_only: bool) -> Self {
         Self {
             ansi_only,
             tables: Vec::with_capacity(16),
+            tree: Document::new(),
         }
     }
 
-    pub fn resolve(&mut self, chunks: Vec<Chunk>) -> crate::Result<Rc<Document>> {
-        let tree = Document::new();
-        let mut node = tree.root();
+    pub fn resolve(
+        &mut self,
+        chunks: Vec<Result<Chunk<'a>>>,
+        word_parser: &'a WordParser,
+    ) -> Result<Rc<Document<'a>>> {
+        let node = self.tree.root();
 
-        for chunk in chunks.iter() {
-            match &chunk.data {
-                ChunkData::Tag(tag) => match tag.r#type {
-                    TagType::Open => {
-                        node = node.append(chunk.clone());
-                    }
+        let node = chunks.into_iter().fold(Ok(node), |node, chunk| {
+            if let Ok(mut node) = node {
+                let chunk = chunk?;
+                match &chunk.data {
+                    ChunkData::Tag(tag) => match tag.r#type {
+                        TagType::Open => {
+                            node = node.append(chunk);
+                        }
 
-                    TagType::Close => {
-                        node.append(chunk.clone());
-                        node = node.parent().unwrap();
-                    }
+                        TagType::Close => {
+                            {
+                                let this = node.chunk().borrow();
+                                let open_name = this.tag().unwrap().name();
+                                if open_name != tag.name() {
+                                    return Err(Error::new(
+                                        ErrorType::InvalidTag,
+                                        format!(
+                                            "Mismatched tags: <{}>...</{}>",
+                                            open_name,
+                                            tag.name()
+                                        ),
+                                        chunk.span,
+                                    ));
+                                }
+                            }
 
-                    TagType::SelfClose => {
-                        node.append(chunk.clone());
+                            node.append(chunk);
+                            node = node.parent().unwrap();
+                        }
+
+                        TagType::SelfClose => {
+                            node.append(chunk);
+                        }
+                    },
+                    ChunkData::WhiteSpace(_) => {
+                        node.append(chunk);
                     }
-                },
-                ChunkData::WhiteSpace(_) => {
-                    node.append(chunk.clone());
+                    ChunkData::Word(_) => {
+                        node.append(chunk);
+                    }
                 }
-                ChunkData::Word(_) => {
-                    node.append(chunk.clone());
-                }
+                Ok(node)
+            } else {
+                node
             }
-        }
-
-        let node = tree.root();
+        })?;
 
         if self.ansi_only {
             Resolver::optimize_ansi(&node);
-            return Ok(tree);
+            return Ok(self.tree.clone());
         }
 
         {
-            let word_parser = WordParser::new();
             let mut resolved = Vec::with_capacity(128);
             self.parse_words(&node, &word_parser, &mut resolved)?;
             for (node, chunks) in resolved {
                 for chunk in chunks {
-                    node.insert_before(chunk);
+                    node.insert_before(chunk?);
                 }
                 node.detach(true);
             }
@@ -98,14 +121,14 @@ impl Resolver {
         Resolver::optimize_ansi(&node);
         self.set_tables();
 
-        Ok(tree)
+        Ok(self.tree.clone())
     }
 
     fn parse_words(
         &mut self,
-        node: &Rc<Node>,
-        word_parser: &WordParser,
-        resolved: &mut Vec<(Rc<Node>, Vec<Chunk>)>,
+        node: &Rc<Node<'a>>,
+        word_parser: &'a WordParser,
+        resolved: &mut Vec<(Rc<Node<'a>>, Vec<Result<Chunk<'a>>>)>,
     ) -> crate::Result<()> {
         for child in node.children() {
             let child_chunk = child.chunk().borrow_mut();
@@ -115,7 +138,7 @@ impl Resolver {
                     r#type: FragmentType::Word,
                     lexeme: word.clone(),
                     span: child_chunk.span,
-                })?;
+                });
                 resolved.push((child.clone(), chs));
             } else if child_chunk.is_tag() {
                 let tag = child_chunk.tag().unwrap();
@@ -127,7 +150,7 @@ impl Resolver {
                         self.tables.push(child.clone());
                     } else if name == "td" {
                         child.insert_before(Chunk {
-                            data: ChunkData::WhiteSpace(String::new()),
+                            data: ChunkData::WhiteSpace(Cow::Borrowed("")),
                             span: Span::inserted(),
                         });
                     }
@@ -167,7 +190,7 @@ impl Resolver {
                 let mut y = 0;
                 for td in tr.children() {
                     if td.chunk().borrow().is_ws() {
-                        td.chunk().borrow_mut().data = ChunkData::WhiteSpace(" ".to_string());
+                        td.chunk().borrow_mut().data = ChunkData::WhiteSpace(Cow::Borrowed(" "));
                         continue;
                     }
                     let mut len = 0;
@@ -186,7 +209,7 @@ impl Resolver {
 
                 if let Some(first) = tr.first_child() {
                     first.insert_before(Chunk {
-                        data: ChunkData::WhiteSpace(indent.clone()),
+                        data: ChunkData::WhiteSpace(Cow::Owned(indent.clone())),
                         span: Span::inserted(),
                     });
                 }
@@ -204,7 +227,7 @@ impl Resolver {
                     let indent = " ".repeat(lwidth - width);
                     if let Some(last) = col.last_child() {
                         last.insert_after(Chunk {
-                            data: ChunkData::WhiteSpace(indent.clone()),
+                            data: ChunkData::WhiteSpace(Cow::Owned(indent.clone())),
                             span: Span::inserted(),
                         });
                     }
@@ -217,8 +240,8 @@ impl Resolver {
     /// Resolve all declared bindings: <let />
     fn resolve_bindings(
         bindings: &mut HashMap<String, Tag>,
-        node: &Rc<Node>,
-        detachables: &mut Vec<Rc<Node>>,
+        node: &Rc<Node<'a>>,
+        detachables: &mut Vec<Rc<Node<'a>>>,
     ) {
         for child in node.children() {
             let mut child_chunk = child.chunk().borrow_mut();
@@ -240,7 +263,7 @@ impl Resolver {
                     for class in tag
                         .class()
                         .clone()
-                        .split(is_whitespace)
+                        .split(|x| is_whitespace(x as u8))
                         .filter(|s| !s.is_empty())
                         .rev()
                     {
@@ -274,7 +297,7 @@ impl Resolver {
     }
 
     /// Optimizes Excess Whitespace
-    fn optimize_ws(node: &Rc<Node>, detachables: &mut Vec<Rc<Node>>) {
+    fn optimize_ws(node: &Rc<Node<'a>>, detachables: &mut Vec<Rc<Node<'a>>>) {
         for child in node.children() {
             let mut child_chunk = child.chunk().borrow_mut();
             if child_chunk.is_ws() {
@@ -283,9 +306,9 @@ impl Resolver {
                 } else if child.id() as usize == child.doc().len() - 1
                     && child_chunk.ws().is_some_and(|s| s.contains("\n"))
                 {
-                    child_chunk.data = ChunkData::WhiteSpace("\n".to_string());
+                    child_chunk.data = ChunkData::WhiteSpace(Cow::Borrowed("\n"));
                 } else {
-                    child_chunk.data = ChunkData::WhiteSpace(" ".to_string());
+                    child_chunk.data = ChunkData::WhiteSpace(Cow::Borrowed(" "));
                 }
 
                 if let Some(first) = child.next_sibling().and_then(|next| next.first_child()) {
@@ -359,7 +382,7 @@ impl Resolver {
                         {
                         } else {
                             child.insert_before(Chunk {
-                                data: ChunkData::WhiteSpace("\n".to_string()),
+                                data: ChunkData::WhiteSpace(Cow::Borrowed("\n")),
                                 span: Span::inserted(),
                             });
                         }

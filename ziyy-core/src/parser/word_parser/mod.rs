@@ -1,7 +1,9 @@
+use std::borrow::Cow;
+
 use super::ansi::{DuoEffect, Effect};
 use super::chunk::{Chunk, ChunkData};
 use super::color::{Ansi256, Color, Rgb};
-use super::tag_parer::tag::{Tag, TagType};
+use super::tag_parser::tag::{Tag, TagType};
 use crate::common::Span;
 use crate::error::Error;
 use crate::scanner::GenericScanner;
@@ -23,7 +25,6 @@ macro_rules! shrink {
     }};
 }
 
-#[doc(hidden)]
 pub struct WordParser;
 
 impl Default for WordParser {
@@ -37,7 +38,7 @@ impl WordParser {
         Self
     }
 
-    pub fn parse(&self, source: Fragment) -> Result<Vec<Chunk>, Error> {
+    pub fn parse<'a>(&self, source: Fragment<'a>) -> Vec<Result<Chunk<'a>, Error>> {
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens();
 
@@ -64,10 +65,10 @@ impl WordParser {
                         i += 1;
                     }
                     let word = tokens[g..i].to_string();
-                    chunks.push(Chunk {
-                        data: ChunkData::Word(word),
+                    chunks.push(Ok(Chunk {
+                        data: ChunkData::Word(Cow::Owned(word)),
                         span: tokens[g..i].to_span(),
-                    });
+                    }));
 
                     break;
                 }
@@ -81,20 +82,20 @@ impl WordParser {
                     let escape_sequence = tokens[h..i].to_string();
 
                     if let Ok(tag) = self.ansi_to_tag(escape_sequence) {
-                        chunks.push(Chunk {
+                        chunks.push(Ok(Chunk {
                             data: ChunkData::Tag(tag),
                             span: tokens[g..i].to_span(),
-                        });
+                        }));
                     }
                 } else {
                     while i < len && tokens[i].literal != '\x1b' {
                         i += 1;
                     }
                     let word = tokens[h..i].to_string();
-                    chunks.push(Chunk {
-                        data: ChunkData::Word(word),
+                    chunks.push(Ok(Chunk {
+                        data: ChunkData::Word(Cow::Owned(word)),
                         span: tokens[h..i].to_span(),
-                    });
+                    }));
                 }
                 i += 1;
 
@@ -105,16 +106,16 @@ impl WordParser {
                     i += 1;
                 }
                 let word = tokens[h..i].to_string();
-                chunks.push(Chunk {
-                    data: ChunkData::Word(word),
+                chunks.push(Ok(Chunk {
+                    data: ChunkData::Word(Cow::Owned(word)),
                     span: tokens[h..i].to_span(),
-                })
+                }))
             }
             // Handle normal character
             // i += 1
         }
 
-        Ok(chunks)
+        chunks
     }
 
     fn ansi_to_tag(&self, source: String) -> Result<Tag, i8> {

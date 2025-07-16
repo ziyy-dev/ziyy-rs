@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::LazyLock};
 
-use crate::parser::ansi::{Ansi, AnsiOptions, Effect, DuoEffect};
+use crate::parser::ansi::{Ansi, AnsiOptions, DuoEffect, Effect};
 
 pub static BUILTIN_STYLES: LazyLock<HashMap<&str, Ansi>> = LazyLock::new(|| {
     [

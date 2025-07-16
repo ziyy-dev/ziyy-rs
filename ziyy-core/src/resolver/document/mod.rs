@@ -8,7 +8,7 @@ use crate::{
     common::Span,
     parser::{
         chunk::{Chunk, ChunkData},
-        tag_parer::tag::{Tag, TagType},
+        tag_parser::tag::{Tag, TagType},
     },
 };
 pub use node::Node;
@@ -18,15 +18,15 @@ mod iter;
 mod node;
 
 #[derive(Clone)]
-#[doc(hidden)]
-pub struct Document {
+
+pub struct Document<'a> {
     recycled: RefCell<Vec<u32>>,
-    nodes: RefCell<Vec<Rc<Node>>>,
+    nodes: RefCell<Vec<Rc<Node<'a>>>>,
 }
 
-impl Document {
+impl<'a> Document<'a> {
     /// Creates a new Document
-    pub fn new() -> Rc<Self> {
+    pub fn new() -> Rc<Document<'a>> {
         let doc = Rc::new(Self {
             recycled: RefCell::new(Vec::with_capacity(64)),
             nodes: RefCell::new(vec![]),
@@ -53,19 +53,19 @@ impl Document {
         doc
     }
 
-    pub fn get(&self, id: u32) -> Rc<Node> {
+    pub fn get(&self, id: u32) -> Rc<Node<'a>> {
         self.nodes.borrow()[id as usize].clone()
     }
 
-    pub fn node(&self, id: u32) -> Rc<Node> {
+    pub fn node(&self, id: u32) -> Rc<Node<'a>> {
         self.get(id)
     }
 
-    pub fn root(&self) -> Rc<Node> {
+    pub fn root(&self) -> Rc<Node<'a>> {
         self.get(0)
     }
 
-    pub fn orphan(self: &Rc<Document>, chunk: Chunk) -> Rc<Node> {
+    pub fn orphan(self: &Rc<Document<'a>>, chunk: Chunk<'a>) -> Rc<Node<'a>> {
         let doc = Rc::downgrade(&Rc::clone(self));
         let mut nodes = self.nodes.borrow_mut();
         let id = nodes.len();
@@ -92,7 +92,7 @@ impl Document {
     }
 }
 
-impl Debug for Document {
+impl<'a> Debug for Document<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         use iter::Edge;
         if f.alternate() {
@@ -127,7 +127,7 @@ impl Debug for Document {
     }
 }
 
-impl Display for Document {
+impl<'a> Display for Document<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         use display::Indentation;
         use iter::Edge;

@@ -1,4 +1,5 @@
 use arg::{Cli, parse_args};
+use std::borrow::Cow;
 use std::env;
 use std::fs::File;
 use std::io::{BufReader, IsTerminal, Read, Write, stdin, stdout};
@@ -12,34 +13,41 @@ use ziyy_core::{
 
 mod arg;
 
-fn parse_escapes_only(source: &str) -> Result<Rc<Document>> {
-    let parser = WordParser::new();
-    let span = Span::calculate(source);
-    let chunks = parser.parse(Fragment::new(FragmentType::Word, source.to_string(), span))?;
+fn index<'a>(source: &'a str) -> Cow<'a, str> {
+    let mut indexer = Indexer::new();
+    indexer.index(source)
+}
+
+fn parse_escapes_only<'a>(
+    source: Cow<'a, str>,
+    word_parser: &'a WordParser,
+) -> Result<Rc<Document<'a>>> {
+    let span = Span::calculate(&source);
+    let chunks = word_parser.parse(Fragment::new(FragmentType::Word, source, span));
     // println!("{chunks:?}");
 
     let mut resolver = Resolver::new(true);
-    resolver.resolve(chunks)
+    resolver.resolve(chunks, word_parser)
 }
 
-fn parse(source: &str) -> Result<Rc<Document>> {
-    let mut indexer = Indexer::new();
-    let source = indexer.index(source.to_string());
+fn parse<'a>(source: &'a Cow<'a, str>, word_parser: &'a WordParser) -> Result<Rc<Document<'a>>> {
     let mut splitter = Splitter::new();
     let frags = splitter.split(source)?;
 
     let parser = Parser::default();
-    let chunks = parser.parse(frags)?;
+    let chunks = parser.parse(frags);
 
     let mut resolver = Resolver::new(false);
-    resolver.resolve(chunks)
+    resolver.resolve(chunks, word_parser)
 }
 
 fn parse_to_out(source: &str, out: &mut impl Write, options: Options) {
     let mut f = || {
+        let indexed = index(source);
+        let word_parser = WordParser::new();
         let output = match options.escape_only {
-            true => parse_escapes_only(source),
-            false => parse(source),
+            true => parse_escapes_only(indexed, &word_parser),
+            false => parse(&indexed, &word_parser),
         }?;
 
         if options.strip {
@@ -64,7 +72,10 @@ fn parse_to_out(source: &str, out: &mut impl Write, options: Options) {
 
 fn usage() {
     let mut out = stdout();
-    let help = parse(&format!(include_str!("help.zy"), env!("CARGO_BIN_NAME"))).unwrap();
+    let help = format!(include_str!("help.zy"), env!("CARGO_BIN_NAME"));
+    let indexed = index(&help);
+    let word_parser = WordParser::new();
+    let help = parse(&indexed, &word_parser).unwrap();
 
     if !out.is_terminal() {
         // help.root().strip_styles();

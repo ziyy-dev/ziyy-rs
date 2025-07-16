@@ -64,7 +64,6 @@ impl Display for Ansi4Bit {
     }
 }
 
-#[doc(hidden)]
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Color {
     Ansi256(Ansi256),

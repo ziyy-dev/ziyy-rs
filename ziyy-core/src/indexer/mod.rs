@@ -1,34 +1,38 @@
-use std::mem::take;
+use std::{borrow::Cow, mem::take};
 
 // mod scanner;
 // mod token;
 
 /// The Indexer adds indices to empty placeholders
-#[doc(hidden)]
-pub struct Indexer {
-    source: String,
+
+pub struct Indexer<'a> {
+    source: &'a str,
     start: usize,
     current: usize,
-    parts: Vec<String>,
+    parts: Vec<Cow<'a, str>>,
 }
 
-impl Default for Indexer {
+impl<'a> Default for Indexer<'a> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Indexer {
+impl<'a> Indexer<'a> {
     pub fn new() -> Self {
         Self {
-            source: String::new(),
+            source: "",
             start: 0,
             current: 0,
             parts: Vec::new(),
         }
     }
 
-    pub fn index(&mut self, source: String) -> String {
+    pub fn index(&mut self, source: &'a str) -> Cow<'a, str> {
+        if !source.contains("{}") {
+            return Cow::Borrowed(source);
+        }
+
         self.source = source;
         self.parts = Vec::with_capacity(self.source.len() / 2);
 
@@ -41,7 +45,9 @@ impl Indexer {
                 self.add_part();
             } else if self.peek(0) == b'{' && self.peek(1) == b'}' && self.peek(2) != b'}' {
                 self.advance(2);
-                self.parts.push(format!("{{{index}}}"));
+                self.parts.push(Cow::Borrowed("{"));
+                self.parts.push(Cow::Owned(index.to_string()));
+                self.parts.push(Cow::Borrowed("}"));
                 index += 1;
             } else {
                 loop {
@@ -60,7 +66,7 @@ impl Indexer {
                 self.add_part();
             }
         }
-        take(&mut self.parts).join("")
+        Cow::Owned(take(&mut self.parts).join(""))
     }
 
     fn peek(&self, n: usize) -> u8 {
@@ -80,7 +86,7 @@ impl Indexer {
     }
 
     fn add_part(&mut self) {
-        let text = self.source[self.start..self.current].to_string();
-        self.parts.push(text);
+        let text = &self.source[self.start..self.current];
+        self.parts.push(Cow::Borrowed(text));
     }
 }

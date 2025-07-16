@@ -1,15 +1,15 @@
 use crate::error::Result;
 use crate::splitter::fragment::{Fragment, FragmentType};
 use chunk::{Chunk, ChunkData};
-pub use word_parer::WordParser;
+use rayon::prelude::*;
+pub use word_parser::WordParser;
 
 pub mod ansi;
 pub mod chunk;
 pub mod color;
-pub mod tag_parer;
-pub mod word_parer;
+pub mod tag_parser;
+pub mod word_parser;
 
-#[doc(hidden)]
 pub struct Parser {
     parse_placeholders: bool,
 }
@@ -25,39 +25,41 @@ impl Parser {
         Self { parse_placeholders }
     }
 
-    pub fn parse(&self, frags: Vec<Fragment>) -> Result<Vec<Chunk>> {
-        let mut tag_parser = tag_parer::TagParser::new(self.parse_placeholders);
+    pub fn parse<'a>(&self, frags: Vec<Fragment<'a>>) -> Vec<Result<Chunk<'a>>> {
         // let word_parer = WordParser::new();
-        let mut chunks = vec![];
-        for frag in frags {
-            let span = frag.span;
-            match frag.r#type {
-                FragmentType::Tag => {
-                    chunks.push(Chunk {
-                        data: ChunkData::Tag(tag_parser.parse(frag)?),
-                        span,
-                    });
-                }
 
-                FragmentType::Whitespace => {
-                    // Handle whitespace fragments
-                    chunks.push(Chunk {
-                        data: ChunkData::WhiteSpace(frag.lexeme),
-                        span,
-                    });
-                }
+        frags
+            .into_par_iter()
+            .map(|frag| {
+                let span = frag.span;
+                match frag.r#type {
+                    FragmentType::Tag => {
+                        let mut tag_parser = tag_parser::TagParser::new(self.parse_placeholders);
+                        Ok(Chunk {
+                            data: ChunkData::Tag(tag_parser.parse(frag)?),
+                            span,
+                        })
+                    }
 
-                FragmentType::Word => {
-                    // Handle word fragments
-                    // let chs = word_parer.parse(frag)?;
-                    // chunks.extend_from_slice(&chs);
-                    chunks.push(Chunk {
-                        data: ChunkData::Word(frag.lexeme),
-                        span,
-                    });
+                    FragmentType::Whitespace => {
+                        // Handle whitespace fragments
+                        Ok(Chunk {
+                            data: ChunkData::WhiteSpace(frag.lexeme),
+                            span,
+                        })
+                    }
+
+                    FragmentType::Word => {
+                        // Handle word fragments
+                        // let chs = word_parer.parse(frag)?;
+                        // chunks.extend_from_slice(&chs);
+                        Ok(Chunk {
+                            data: ChunkData::Word(frag.lexeme),
+                            span,
+                        })
+                    }
                 }
-            }
-        }
-        Ok(chunks)
+            })
+            .collect()
     }
 }

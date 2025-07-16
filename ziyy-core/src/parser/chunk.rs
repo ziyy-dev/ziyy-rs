@@ -1,29 +1,30 @@
 use std::{
+    borrow::Cow,
     fmt::Display,
     ops::{Deref, DerefMut},
 };
 
 use crate::common::Span;
 
-use super::tag_parer::tag::Tag;
+use super::tag_parser::tag::Tag;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ChunkData {
+pub enum ChunkData<'a> {
     Tag(Tag),
-    WhiteSpace(String),
-    Word(String),
+    WhiteSpace(Cow<'a, str>),
+    Word(Cow<'a, str>),
 }
 
-impl ChunkData {
+impl<'a> ChunkData<'a> {
     pub fn new_tag(tag: Tag) -> Self {
         Self::Tag(tag)
     }
 
-    pub fn new_word(word: String) -> Self {
+    pub fn new_word(word: Cow<'a, str>) -> Self {
         Self::Word(word)
     }
 
-    pub fn new_ws(ws: String) -> Self {
+    pub fn new_ws(ws: Cow<'a, str>) -> Self {
         Self::WhiteSpace(ws)
     }
 
@@ -57,7 +58,7 @@ impl ChunkData {
         }
     }
 
-    pub fn word(&self) -> Option<&String> {
+    pub fn word(&self) -> Option<&Cow<'a, str>> {
         if let ChunkData::Word(word) = self {
             Some(word)
         } else {
@@ -65,7 +66,7 @@ impl ChunkData {
         }
     }
 
-    pub fn ws(&self) -> Option<&String> {
+    pub fn ws(&self) -> Option<&Cow<'a, str>> {
         if let ChunkData::WhiteSpace(ws) = self {
             Some(ws)
         } else {
@@ -82,7 +83,7 @@ impl ChunkData {
     }
 }
 
-impl Display for ChunkData {
+impl<'a> Display for ChunkData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
             match self {
@@ -101,27 +102,27 @@ impl Display for ChunkData {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[doc(hidden)]
-pub struct Chunk {
-    pub data: ChunkData,
+
+pub struct Chunk<'a> {
+    pub data: ChunkData<'a>,
     pub span: Span,
 }
 
-impl Deref for Chunk {
-    type Target = ChunkData;
+impl<'a> Deref for Chunk<'a> {
+    type Target = ChunkData<'a>;
 
     fn deref(&self) -> &Self::Target {
         &self.data
     }
 }
 
-impl DerefMut for Chunk {
+impl<'a> DerefMut for Chunk<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.data
     }
 }
 
-impl Display for Chunk {
+impl<'a> Display for Chunk<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
             f.write_fmt(format_args!(

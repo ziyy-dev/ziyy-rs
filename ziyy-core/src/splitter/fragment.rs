@@ -1,8 +1,10 @@
+use std::borrow::Cow;
+
 use crate::common::Span;
 
 #[derive(Debug, Clone)]
 #[allow(clippy::upper_case_acronyms)]
-#[doc(hidden)]
+
 pub enum FragmentType {
     Tag,
     Whitespace,
@@ -10,15 +12,15 @@ pub enum FragmentType {
 }
 
 #[derive(Debug, Clone)]
-#[doc(hidden)]
-pub struct Fragment {
+
+pub struct Fragment<'a> {
     pub r#type: FragmentType,
-    pub lexeme: String,
+    pub lexeme: Cow<'a, str>,
     pub span: Span,
 }
 
-impl Fragment {
-    pub fn new(r#type: FragmentType, lexeme: String, span: Span) -> Self {
+impl<'a> Fragment<'a> {
+    pub fn new(r#type: FragmentType, lexeme: Cow<'a, str>, span: Span) -> Self {
         Fragment {
             r#type,
             lexeme,
