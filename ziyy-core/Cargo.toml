@@ -1,6 +1,6 @@
 [package]
 name = "ziyy-core"
-version = "0.1.1"
+version = "0.1.2"
 repository = "https://github.com/ziyy-dev/ziyy-rs.git"
 edition = "2024"
 description = "Terminal Styling using HTML-like syntax."
