@@ -8,7 +8,8 @@ use std::process::exit;
 use std::rc::Rc;
 use ziyy::Error;
 use ziyy_core::{
-    Document, Fragment, FragmentType, Indexer, Parser, Resolver, Result, Span, Splitter, WordParser,
+    Document, Fragment, FragmentType, Indexer, Parser, Resolver, Result, Span, Splitter,
+    WORD_PARSER,
 };
 
 mod arg;
@@ -18,19 +19,16 @@ fn index<'a>(source: &'a str) -> Cow<'a, str> {
     indexer.index(source)
 }
 
-fn parse_escapes_only<'a>(
-    source: Cow<'a, str>,
-    word_parser: &'a WordParser,
-) -> Result<Rc<Document<'a>>> {
+fn parse_escapes_only<'a>(source: Cow<'a, str>) -> Result<Rc<Document<'a>>> {
     let span = Span::calculate(&source);
-    let chunks = word_parser.parse(Fragment::new(FragmentType::Word, source, span));
+    let chunks = WORD_PARSER.parse(Fragment::new(FragmentType::Word, source, span));
     // println!("{chunks:?}");
 
     let mut resolver = Resolver::new(true);
-    resolver.resolve(chunks, word_parser)
+    resolver.resolve(chunks)
 }
 
-fn parse<'a>(source: &'a Cow<'a, str>, word_parser: &'a WordParser) -> Result<Rc<Document<'a>>> {
+fn parse<'a>(source: &'a Cow<'a, str>) -> Result<Rc<Document<'a>>> {
     let mut splitter = Splitter::new();
     let frags = splitter.split(source)?;
 
@@ -38,16 +36,15 @@ fn parse<'a>(source: &'a Cow<'a, str>, word_parser: &'a WordParser) -> Result<Rc
     let chunks = parser.parse(frags);
 
     let mut resolver = Resolver::new(false);
-    resolver.resolve(chunks, word_parser)
+    resolver.resolve(chunks)
 }
 
 fn parse_to_out(source: &str, out: &mut impl Write, options: Options) {
     let mut f = || {
         let indexed = index(source);
-        let word_parser = WordParser::new();
         let output = match options.escape_only {
-            true => parse_escapes_only(indexed, &word_parser),
-            false => parse(&indexed, &word_parser),
+            true => parse_escapes_only(indexed),
+            false => parse(&indexed),
         }?;
 
         if options.strip {
@@ -74,8 +71,7 @@ fn usage() {
     let mut out = stdout();
     let help = format!(include_str!("help.zy"), env!("CARGO_BIN_NAME"));
     let indexed = index(&help);
-    let word_parser = WordParser::new();
-    let help = parse(&indexed, &word_parser).unwrap();
+    let help = parse(&indexed).unwrap();
 
     if !out.is_terminal() {
         // help.root().strip_styles();

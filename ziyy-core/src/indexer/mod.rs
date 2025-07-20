@@ -4,7 +4,6 @@ use std::{borrow::Cow, mem::take};
 // mod token;
 
 /// The Indexer adds indices to empty placeholders
-
 pub struct Indexer<'a> {
     source: &'a str,
     start: usize,

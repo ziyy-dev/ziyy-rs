@@ -46,6 +46,7 @@ impl Sub for Effect {
             (Effect::Apply, Effect::Apply) => Effect::None,
             (Effect::Clear, Effect::Clear) => Effect::None,
             (Effect::Apply, _) => Effect::Apply,
+            (Effect::Clear, Effect::None) => Effect::None,
             (Effect::Clear, _) => Effect::Clear,
         }
     }
@@ -69,7 +70,7 @@ impl From<(bool, bool)> for Effect {
             (false, false) => Effect::None,
             (true, false) => Effect::Apply,
             (false, true) => Effect::Clear,
-            _ => panic!("Invalid Effect"),
+            _ => unreachable!("Invalid Effect"),
         }
     }
 }
@@ -97,7 +98,6 @@ pub enum DuoEffect {
 
 impl DuoEffect {
     /// If any effect is set
-
     pub fn is_set(&self) -> bool {
         !matches!(self, DuoEffect::None)
     }
@@ -139,6 +139,9 @@ impl Add for DuoEffect {
             (DuoEffect::A | DuoEffect::BA, DuoEffect::AE) => DuoEffect::AE,
             // clear B and AB only
             (DuoEffect::B | DuoEffect::AB, DuoEffect::BE) => DuoEffect::BE,
+
+            (DuoEffect::AE, DuoEffect::B) => DuoEffect::AB,
+            (DuoEffect::BE, DuoEffect::A) => DuoEffect::BA,
             // AE can only clear A and BA
             (lhs, DuoEffect::AE) => lhs,
             // BE can only clear B and AB
@@ -156,8 +159,7 @@ impl Sub for DuoEffect {
     /// to ensure an effect is declared once and cleared once.
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            // we can't clear an effect twice
-            // (DuoEffect::E, DuoEffect::E) => DuoEffect::None,
+            (DuoEffect::E, DuoEffect::None) => DuoEffect::None,
             // if none, no need to redeclare effect or clear all effects
             (DuoEffect::None | DuoEffect::E, _) => self,
             // we have left the initial state or state of being cleared

@@ -1,28 +1,21 @@
-use ziyy_core::{Color, WordParser};
-
 use std::{borrow::Cow, rc::Rc};
+use ziyy_core::Color;
+use ziyy_core::{Document, Parser, Resolver, Result, Splitter};
 
-use ziyy_core::{Document, Indexer, Parser, Resolver, Result, Splitter};
-
-fn try_style<'a>(
-    source: &'a Cow<'a, str>,
-    word_parser: &'a WordParser,
-) -> Result<Rc<Document<'a>>> {
+fn try_style<'a>(source: &'a Cow<'a, str>) -> Result<Rc<Document<'a>>> {
     let mut splitter = Splitter::new();
-    let frags = splitter.split(&source).unwrap();
+    let frags = splitter.split(source).unwrap();
 
     let parser = Parser::new(false);
     let chunks = parser.parse(frags);
 
     let mut resolver = Resolver::new(false);
-    resolver.resolve(chunks, word_parser)
+    resolver.resolve(chunks)
 }
 
 fn assert_fg_colors_eq(source: &str, color: Color) {
-    let mut indexer = Indexer::new();
-    let source = indexer.index(source);
-    let word_parser = WordParser::new();
-    let styled = try_style(&source, &word_parser);
+    let source = Cow::Borrowed(source);
+    let styled = try_style(&source);
     let _ = styled.is_ok_and(|doc| {
         let node = doc.get(1);
         let chunk = node.chunk().borrow();
@@ -33,10 +26,8 @@ fn assert_fg_colors_eq(source: &str, color: Color) {
 }
 
 fn assert_bg_colors_eq(source: &str, color: Color) {
-    let mut indexer = Indexer::new();
-    let source = indexer.index(source);
-    let word_parser = WordParser::new();
-    let styled = try_style(&source, &word_parser);
+    let source = Cow::Borrowed(source);
+    let styled = try_style(&source);
     let _ = styled.is_ok_and(|doc| {
         let node = doc.get(1);
         let chunk = node.chunk().borrow();

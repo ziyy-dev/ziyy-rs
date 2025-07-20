@@ -1,13 +1,14 @@
 use std::{borrow::Cow, collections::HashMap, rc::Rc};
 
 use crate::{
-    Error, ErrorType, Fragment, FragmentType, Result, WordParser,
+    Error, ErrorType, Fragment, FragmentType, Result,
     builtin::{BUILTIN_STYLES, BUILTIN_TAGS},
     common::Span,
     parser::{
         ansi::Ansi,
         chunk::{Chunk, ChunkData},
         tag_parser::tag::{Tag, TagType},
+        word_parser::WORD_PARSER,
     },
     splitter::is_whitespace,
 };
@@ -30,59 +31,52 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    pub fn resolve(
-        &mut self,
-        chunks: Vec<Result<Chunk<'a>>>,
-        word_parser: &'a WordParser,
-    ) -> Result<Rc<Document<'a>>> {
+    pub fn resolve(&mut self, chunks: Vec<Result<Chunk<'a>>>) -> Result<Rc<Document<'a>>> {
         let node = self.tree.root();
 
-        let node = chunks.into_iter().fold(Ok(node), |node, chunk| {
-            if let Ok(mut node) = node {
-                let chunk = chunk?;
-                match &chunk.data {
-                    ChunkData::Tag(tag) => match tag.r#type {
-                        TagType::Open => {
-                            node = node.append(chunk);
-                        }
+        chunks.into_iter().try_fold(node, |mut node, chunk| {
+            let chunk = chunk?;
+            match &chunk.data {
+                ChunkData::Tag(tag) => match tag.r#type {
+                    TagType::Open => {
+                        node = node.append(chunk);
+                    }
 
-                        TagType::Close => {
-                            {
-                                let this = node.chunk().borrow();
-                                let open_name = this.tag().unwrap().name();
-                                if open_name != tag.name() {
-                                    return Err(Error::new(
-                                        ErrorType::InvalidTag,
-                                        format!(
-                                            "Mismatched tags: <{}>...</{}>",
-                                            open_name,
-                                            tag.name()
-                                        ),
-                                        chunk.span,
-                                    ));
-                                }
+                    TagType::Close => {
+                        {
+                            let this = node.chunk().borrow();
+                            let open_name = this.tag().unwrap().name();
+                            if open_name != tag.name() {
+                                return Err(Error::new(
+                                    ErrorType::InvalidTag,
+                                    format!("Mismatched tags: <{}>...</{}>", open_name, tag.name()),
+                                    chunk.span,
+                                ));
                             }
-
-                            node.append(chunk);
-                            node = node.parent().unwrap();
                         }
 
-                        TagType::SelfClose => {
-                            node.append(chunk);
-                        }
-                    },
-                    ChunkData::WhiteSpace(_) => {
+                        node.append(chunk);
+                        node = node.parent().unwrap();
+                    }
+
+                    TagType::SelfClose => {
                         node.append(chunk);
                     }
-                    ChunkData::Word(_) => {
-                        node.append(chunk);
-                    }
+                },
+                ChunkData::WhiteSpace(_) => {
+                    node.append(chunk);
                 }
-                Ok(node)
-            } else {
-                node
+                ChunkData::Word(_) => {
+                    node.append(chunk);
+                }
             }
+            Ok(node)
         })?;
+
+        let node = self.tree.root();
+
+        // ensures we are working with the root node if not we could get some weird bugs
+        assert!(node.id() == 0);
 
         if self.ansi_only {
             Resolver::optimize_ansi(&node);
@@ -91,7 +85,7 @@ impl<'a> Resolver<'a> {
 
         {
             let mut resolved = Vec::with_capacity(128);
-            self.parse_words(&node, &word_parser, &mut resolved)?;
+            self.parse_words(&node, &mut resolved)?;
             for (node, chunks) in resolved {
                 for chunk in chunks {
                     node.insert_before(chunk?);
@@ -127,14 +121,13 @@ impl<'a> Resolver<'a> {
     fn parse_words(
         &mut self,
         node: &Rc<Node<'a>>,
-        word_parser: &'a WordParser,
         resolved: &mut Vec<(Rc<Node<'a>>, Vec<Result<Chunk<'a>>>)>,
     ) -> crate::Result<()> {
         for child in node.children() {
             let child_chunk = child.chunk().borrow_mut();
             if child_chunk.is_word() {
                 let word = child_chunk.word().unwrap();
-                let chs = word_parser.parse(Fragment {
+                let chs = WORD_PARSER.parse(Fragment {
                     r#type: FragmentType::Word,
                     lexeme: word.clone(),
                     span: child_chunk.span,
@@ -156,7 +149,7 @@ impl<'a> Resolver<'a> {
                     }
                 }
 
-                self.parse_words(&child, word_parser, resolved)?;
+                self.parse_words(&child, resolved)?;
                 continue;
             }
         }
@@ -411,7 +404,7 @@ impl<'a> Resolver<'a> {
     }
 
     /// Optimize styles
-    fn optimize_styles(node: &Rc<Node>) {
+    pub fn optimize_styles(node: &Rc<Node>) {
         let mut stack: Vec<(String, Ansi, Ansi)> = Vec::with_capacity(1024);
         for child in node.descendants() {
             let mut child_chunk = child.chunk().borrow_mut();
@@ -439,7 +432,8 @@ impl<'a> Resolver<'a> {
                         //
                         tag.ansi = !new_tag.2.clone();
 
-                        if let Some((_, prev, _)) = stack.last() {
+                        if let Some((_, prev, prev_delta)) = stack.last() {
+                            tag.ansi = tag.ansi.clone() + prev_delta.clone();
                             if !prev.fg_color().is_empty() && !tag.fg_color().is_empty() {
                                 tag.ansi.set_fg_color(prev.fg_color().clone());
                             }

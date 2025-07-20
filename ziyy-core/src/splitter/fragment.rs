@@ -3,8 +3,6 @@ use std::borrow::Cow;
 use crate::common::Span;
 
 #[derive(Debug, Clone)]
-#[allow(clippy::upper_case_acronyms)]
-
 pub enum FragmentType {
     Tag,
     Whitespace,

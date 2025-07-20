@@ -26,10 +26,7 @@ impl<'a> Iterator for Children<'a> {
             node
         } else {
             let node = self.front.take();
-            self.front = node
-                .as_ref()
-                .map(|x| x.deref())
-                .and_then(Node::next_sibling);
+            self.front = node.as_deref().and_then(Node::next_sibling);
             node
         }
     }

@@ -6,11 +6,15 @@ repository = "https://github.com/ziyy-dev/ziyy-rs.git"
 edition = "2024"
 description = "Terminal Styling using HTML-like syntax."
 license = "MIT OR Apache-2.0"
-keywords = ["terminal", "color", "style", "html", "cli"]
+keywords = ["terminal", "ansi", "style", "html", "cli"]
 categories = ["command-line-interface", "command-line-utilities"]
 
 [workspace]
 members = ["ziyy-core", "ziyy-proc"]
 
 [dependencies]
-ziyy-core = { path = "ziyy-core", version = "0.1.0", features = ["unstable"] }
+terminal_size = "0.4.2"
+ziyy-core = { path = "ziyy-core", version = "0.1.0", features = [
+    "unstable",
+    "parallel",
+] }

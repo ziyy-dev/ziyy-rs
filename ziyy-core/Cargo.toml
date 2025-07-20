@@ -5,7 +5,7 @@ repository = "https://github.com/ziyy-dev/ziyy-rs.git"
 edition = "2024"
 description = "Terminal Styling using HTML-like syntax."
 license = "MIT OR Apache-2.0"
-keywords = ["terminal", "color", "style", "html", "cli"]
+keywords = ["terminal", "ansi", "style", "html", "cli"]
 categories = ["command-line-interface", "command-line-utilities"]
 
 [package.metadata.docs.rs]
@@ -13,11 +13,17 @@ all-features = true
 rustdoc-args = ["--generate-link-to-definition"]
 
 [features]
-default = ["unstable"]
+default = []
 unstable = []
+parallel = ["dep:rayon"]
 
 [dependencies]
-rayon = "1.10.0"
+rayon = { version = "1.10.0", optional = true }
 
 [[bench]]
-name = "parse"
+name = "style"
+required-features = ["unstable"]
+
+[[test]]
+name = "colors_test"
+required-features = ["unstable"]

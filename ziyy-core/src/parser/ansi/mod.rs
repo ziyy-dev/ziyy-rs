@@ -317,6 +317,9 @@ impl SubAssign for Ansi {
         self.set_italics(self.italics() - rhs.italics());
         self.set_negative(self.negative() - rhs.negative());
         self.set_strike(self.strike() - rhs.strike());
+
+        self.set_fg_color(self.fg_color() - rhs.fg_color());
+        self.set_bg_color(self.bg_color() - rhs.bg_color());
     }
 }
 

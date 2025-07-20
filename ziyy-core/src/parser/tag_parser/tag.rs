@@ -31,12 +31,6 @@ impl Default for Tag {
 }
 
 impl Tag {
-    pub fn with_name(name: &str) -> Self {
-        let mut tag = Tag::default();
-        tag.set_name(name.to_string());
-        tag
-    }
-
     pub fn close(&self) -> Self {
         assert!(self.r#type == TagType::Open);
         let mut tag = Tag {

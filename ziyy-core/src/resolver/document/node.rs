@@ -97,6 +97,7 @@ impl<'a> Node<'a> {
     }
 
     /// Prepends a new child to this node.
+    #[allow(dead_code)]
     pub fn prepend(&self, value: Chunk<'a>) -> RNode<'a> {
         let id = self.doc().orphan(value).id;
         self.prepend_id(id)
@@ -196,6 +197,7 @@ impl<'a> Node<'a> {
     }
 
     /// Prepends a child to this node.
+    #[allow(dead_code)]
     pub fn prepend_id(&self, new_child_id: u32) -> RNode<'a> {
         assert_ne!(
             self.id, new_child_id,

@@ -16,18 +16,6 @@ pub enum ChunkData<'a> {
 }
 
 impl<'a> ChunkData<'a> {
-    pub fn new_tag(tag: Tag) -> Self {
-        Self::Tag(tag)
-    }
-
-    pub fn new_word(word: Cow<'a, str>) -> Self {
-        Self::Word(word)
-    }
-
-    pub fn new_ws(ws: Cow<'a, str>) -> Self {
-        Self::WhiteSpace(ws)
-    }
-
     pub fn is_tag(&self) -> bool {
         matches!(self, ChunkData::Tag(_))
     }

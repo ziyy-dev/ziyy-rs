@@ -5,9 +5,7 @@ extern crate test;
 use std::{borrow::Cow, rc::Rc};
 
 use test::{Bencher, black_box};
-use ziyy_core::{
-    Chunk, Document, Fragment, Indexer, Parser, Resolver, Result, Splitter, WordParser, style,
-};
+use ziyy_core::{Chunk, Document, Fragment, Indexer, Parser, Resolver, Result, Splitter, style};
 
 const HELP: &str = include_str!("help.zy");
 
@@ -70,23 +68,21 @@ fn parse_help(b: &mut Bencher) {
     });
 }
 
-fn resolve<'a>(source: &'a Cow<'a, str>, word_parser: &'a WordParser) -> Rc<Document<'a>> {
+fn resolve<'a>(source: &'a Cow<'a, str>) -> Rc<Document<'a>> {
     let mut resolver = Resolver::new(false);
-    // let word_parser = WordParser::new();
-    resolver.resolve(parse(source), word_parser).unwrap()
+    resolver.resolve(parse(source)).unwrap()
 }
 
 #[bench]
 fn resolve_help(b: &mut Bencher) {
     b.iter(|| {
         let indexed = index();
-        let word_parser = WordParser::new();
-        black_box(resolve(&indexed, &word_parser));
+        black_box(resolve(&indexed));
     });
 }
 
-fn to_string<'a>(source: &'a Cow<'a, str>, word_parser: &'a WordParser) -> String {
-    let output = resolve(source, word_parser);
+fn to_string<'a>(source: &'a Cow<'a, str>) -> String {
+    let output = resolve(source);
     let mut buf = String::new();
     output.root().to_string(&mut buf);
     buf
@@ -96,7 +92,6 @@ fn to_string<'a>(source: &'a Cow<'a, str>, word_parser: &'a WordParser) -> Strin
 fn style_help(b: &mut Bencher) {
     b.iter(|| {
         let indexed = index();
-        let word_parser = WordParser::new();
-        black_box(to_string(&indexed, &word_parser));
+        black_box(to_string(&indexed));
     });
 }

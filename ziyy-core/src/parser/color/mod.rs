@@ -5,7 +5,7 @@ pub use number::Number;
 use scanner::Scanner;
 use std::collections::VecDeque;
 use std::fmt::Display;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Sub};
 use token::TokenType::*;
 use token::{Token, TokenType};
 
@@ -214,6 +214,10 @@ impl Color {
         )
     }
 
+    pub fn is_reset(&self) -> bool {
+        *self == Color::four_bit(39) || *self == Color::four_bit(49)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.to_string().is_empty()
     }
@@ -290,8 +294,21 @@ impl From<Color> for String {
 
 impl AddAssign for Color {
     fn add_assign(&mut self, rhs: Self) {
-        if !rhs.is_empty() {
+        if self.is_empty() && rhs.is_reset() {
+        } else if !rhs.is_empty() {
             *self = rhs
+        }
+    }
+}
+
+impl Sub for &Color {
+    type Output = Color;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        if self.is_reset() && rhs.is_empty() {
+            Color::new()
+        } else {
+            self.clone()
         }
     }
 }
