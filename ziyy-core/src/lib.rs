@@ -75,14 +75,17 @@ pub fn style<T: AsRef<str>>(source: T) -> String {
 /// # Example
 ///
 /// ```
+/// # fn main() -> ziyy_core::Result<()> {
 /// # use ziyy_core as ziyy;
-/// use ziyy::style;
+/// use ziyy::try_style;
 ///
-/// let styled_text = try_style("\
+/// let styled_text = try_style(r#"
 /// <let id="custom" c="blue">
 ///     This is a custom element.
 /// </let>
-/// <span class='s custom'>This text is in blue</span>")?;
+/// <span class='s custom'>This text is in blue</span>"#)?;
+/// # Ok(())
+/// # }
 pub fn try_style<T: AsRef<str>>(source: T) -> Result<String> {
     if source.as_ref().is_empty() {
         return Ok(String::new());
