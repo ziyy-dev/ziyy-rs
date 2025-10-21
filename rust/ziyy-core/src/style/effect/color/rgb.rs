@@ -12,12 +12,13 @@ use super::ColorKind;
 pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Rgb {
+    #[must_use]
     pub fn to_string(&self, kind: ColorKind) -> String {
         let Rgb(r, g, b) = self;
         format!("\x1b[{};2;{r};{g};{b}m", kind as u8 + 8)
     }
 
-    pub fn parse<'src>(scanner: &mut Scanner<'src>) -> Result<'src, Self> {
+    pub(crate) fn parse<'src>(scanner: &mut Scanner<'src>) -> Result<'src, Self> {
         let token = scanner.scan_token()?;
         let mut r = 0;
         let mut g = 0;

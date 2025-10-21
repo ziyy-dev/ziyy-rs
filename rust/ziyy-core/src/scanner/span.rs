@@ -12,6 +12,7 @@ pub struct Span {
 }
 
 impl Span {
+    #[must_use]
     pub fn new(start: Position, end: Position) -> Self {
         Self { start, end }
     }
@@ -34,13 +35,13 @@ impl Add for Span {
 
 impl AddAssign for Span {
     fn add_assign(&mut self, rhs: Self) {
-        self.end = rhs.end
+        self.end = rhs.end;
     }
 }
 
 impl AddAssign<Position> for Span {
     fn add_assign(&mut self, rhs: Position) {
-        self.end = rhs
+        self.end = rhs;
     }
 }
 

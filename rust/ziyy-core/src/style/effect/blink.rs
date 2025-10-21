@@ -11,8 +11,9 @@ pub enum Blink {
 }
 
 impl Blink {
+    #[must_use]
     pub fn as_str(&self) -> &str {
-        use Blink::*;
+        use Blink::{Fast, None, Slow, Unset};
 
         match self {
             None => "",
@@ -22,6 +23,7 @@ impl Blink {
         }
     }
 
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
@@ -29,7 +31,7 @@ impl Blink {
 
 impl FromU8 for Blink {
     fn from_u8(value: u8) -> Self {
-        use Blink::*;
+        use Blink::{Fast, None, Slow, Unset};
 
         match value {
             0 => None,
@@ -45,7 +47,7 @@ impl Add for Blink {
     type Output = Blink;
 
     fn add(self, rhs: Self) -> Self::Output {
-        use Blink::*;
+        use Blink::{None, Unset};
 
         match (self, rhs) {
             (None, Unset) => None,
@@ -60,7 +62,7 @@ impl Sub for Blink {
     type Output = Blink;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        use Blink::*;
+        use Blink::None;
 
         match (self, rhs) {
             (None, rhs) => !rhs,
@@ -74,7 +76,7 @@ impl Not for Blink {
     type Output = Blink;
 
     fn not(self) -> Self::Output {
-        use Blink::*;
+        use Blink::{Fast, None, Slow, Unset};
 
         match self {
             Slow => Unset,

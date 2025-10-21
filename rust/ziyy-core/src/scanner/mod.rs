@@ -43,8 +43,8 @@ pub fn is_whitespace(c: char) -> bool {
 #[derive(Clone)]
 pub struct Scanner<'src> {
     pub(crate) source: &'src str,
-    start: usize,
-    current: usize,
+    start: u32,
+    current: u32,
     pub(crate) text_mode: bool,
     pub(crate) parse_colors: bool,
     pub start_pos: Position,
@@ -98,9 +98,9 @@ impl<'src> Scanner<'src> {
         ch
     }
 
-    pub fn advance_n(&mut self, n: usize) {
+    pub fn advance_n(&mut self, n: u32) {
         self.current += n;
-        self.current_pos.col += n as u16;
+        self.current_pos.col += n;
     }
 
     /// Peeks at the character at offset without advancing the scanner.
@@ -125,20 +125,20 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the created token.
+    #[allow(clippy::unnecessary_wraps)]
     pub fn make_token(&mut self, kind: TokenKind) -> Result<'src, Token<'src>> {
-        let s = &self.source[(self.start)..(self.current as usize)];
+        let s = &self.source[(self.start as usize)..self.current as usize];
         let span = Span::new(self.start_pos, self.current_pos);
 
         if matches!(kind, TokenKind::LESS | TokenKind::LESS_SLASH) {
-            self.text_mode = false
+            self.text_mode = false;
         } else if matches!(kind, TokenKind::GREAT | TokenKind::SLASH_GREAT) {
-            self.text_mode = true
+            self.text_mode = true;
         }
 
         Ok(Token {
             kind,
             content: s,
-            custom: 0,
             span,
         })
     }
@@ -153,7 +153,7 @@ impl<'src> Scanner<'src> {
     ///
     /// * A `Result` containing the created error token.
     pub fn error_token(&self, eof: bool) -> Result<'src, Token<'src>> {
-        let s = &self.source[(self.start)..(self.current as usize)];
+        let s = &self.source[(self.start as usize)..self.current as usize];
         let span = Span::new(self.start_pos, self.current_pos);
         let kind = if eof {
             ErrorKind::UnexpectedEof
@@ -216,8 +216,8 @@ impl<'src> Scanner<'src> {
     ///
     /// * The token kind if the keyword matches, `TokenKind::Identifier` otherwise.
     pub fn check_keyword(&mut self, start: usize, rest: &str, kind: TokenKind) -> TokenKind {
-        let s = &self.source[(self.start + start)..self.current];
-        if self.current - self.start == start + rest.len() && s == rest {
+        let s = &self.source[(self.start as usize + start)..self.current as usize];
+        if (self.current - self.start) as usize == start + rest.len() && s == rest {
             kind
         } else {
             TokenKind::IDENTIFIER
@@ -229,13 +229,19 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * The kind of identifier token.
+    #[allow(clippy::single_match)]
+    #[allow(clippy::too_many_lines)]
     pub fn identifier_kind(&mut self) -> TokenKind {
-        use token::TokenKind::*;
+        use token::TokenKind::{
+            A, B, BLACK, BLOCK, BLUE, BR, C, CLASS, CURLY, CYAN, D, DIV, DOTTED, DOUBLE, FIXED,
+            GREEN, H, HREF, I, ID, IDENTIFIER, INDENT, K, LET, MAGENTA, N, NONE, P, PRE, R, RED,
+            RGB, S, SINGLE, SPAN, U, UU, WHITE, X, YELLOW, ZIYY,
+        };
 
         macro_rules! get {
             ($idx:literal, $kind:expr) => {
                 if self.current - self.start > $idx {
-                    self.source.as_bytes()[self.start + $idx] as char
+                    self.source.as_bytes()[self.start as usize + $idx] as char
                 } else {
                     return $kind;
                 }
@@ -243,7 +249,7 @@ impl<'src> Scanner<'src> {
 
             ($idx:literal) => {
                 if self.current - self.start > $idx {
-                    self.source.as_bytes()[self.start + $idx] as char
+                    self.source.as_bytes()[self.start as usize + $idx] as char
                 } else {
                     return IDENTIFIER;
                 }
@@ -523,7 +529,7 @@ impl<'src> Scanner<'src> {
             })
         } else {
             let c = self.peek(0);
-            return self.text_token(c);
+            self.text_token(c)
         }
     }
 
@@ -559,7 +565,7 @@ impl<'src> Scanner<'src> {
         let kind = match c {
             'a' => TokenKind::ESC_A,
             'b' => TokenKind::ESC_B,
-            'e' => TokenKind::ESC_R,
+            'e' => TokenKind::ESC_E,
             'f' => TokenKind::ESC_F,
             'n' => TokenKind::ESC_N,
             'r' => TokenKind::ESC_R,
@@ -656,9 +662,8 @@ impl<'src> Scanner<'src> {
                             {
                                 self.advance_n(4);
                                 break;
-                            } else {
-                                self.advance_n(1);
                             }
+                            self.advance_n(1);
                         }
 
                         self.make_token(TokenKind::ESCAPED)

@@ -25,6 +25,7 @@ pub enum AnsiColor {
 }
 
 impl AnsiColor {
+    #[must_use]
     pub fn to_string(&self, kind: ColorKind) -> String {
         format!("\x1b[{}m", kind as u8 + *self as u8)
     }
@@ -34,7 +35,11 @@ impl TryFrom<u8> for AnsiColor {
     type Error = u8;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        use AnsiColor::*;
+        use AnsiColor::{
+            Black, Blue, BrightBlack, BrightBlue, BrightCyan, BrightGreen, BrightMagenta,
+            BrightRed, BrightWhite, BrightYellow, Cyan, Default, Green, Magenta, Red, White,
+            Yellow,
+        };
 
         match value {
             0 => Ok(Black),

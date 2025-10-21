@@ -25,7 +25,7 @@ impl<'src> Parser {
         }
 
         let current_tag = ctx.state.pop().unwrap_or_default();
-        self.buf.push_str(&current_tag.2.not().to_string());
+        self.buf.push_str(&current_tag.2.not().to_string2());
 
         Ok(())
     }

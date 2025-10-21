@@ -34,6 +34,7 @@ macro_rules! define_effect {
         }
 
         impl $name {
+            #[must_use]
             pub fn as_str(&self) -> &str {
                 use $name::*;
 
@@ -44,6 +45,7 @@ macro_rules! define_effect {
                 }
             }
 
+            #[must_use]
             pub fn as_bytes(&self) -> &[u8] {
                 self.as_str().as_bytes()
             }
@@ -152,7 +154,7 @@ macro_rules! impl_set_unset {
     ($($name:tt)*) => {
         $(
             impl $name {
-                pub fn is_set(&self) -> bool {
+                #[must_use] pub fn is_set(&self) -> bool {
                     use $name::*;
 
                     match self {
@@ -161,7 +163,7 @@ macro_rules! impl_set_unset {
                     }
                 }
 
-                pub fn is_unset(&self) -> bool {
+                #[must_use] pub fn is_unset(&self) -> bool {
                     !self.is_set()
                 }
             }

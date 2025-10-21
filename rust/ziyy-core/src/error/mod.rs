@@ -14,20 +14,24 @@ pub struct Error<'src> {
 }
 
 impl<'src> Error<'src> {
+    #[must_use]
     pub fn kind(&self) -> &ErrorKind<'src> {
         &self.kind
     }
 }
 
-impl<'src> error::Error for Error<'src> {}
+impl error::Error for Error<'_> {}
 
-impl<'src> fmt::Display for Error<'src> {
+impl fmt::Display for Error<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("error: ")?;
         match &self.kind {
+            ErrorKind::BuiltinTagOverwrite(name) => {
+                f.write_fmt(format_args!("attempt to overwrite builtin tag: `{name}`"))
+            }
             ErrorKind::UnexpectedToken { expected, found } => match found {
                 Some(found) => f.write_fmt(format_args!(
-                    "unexpected token, expected {expected:?}, found `{found}`"
+                    "unexpected token, expected {expected:?} but found `{found}`"
                 )),
                 None => f.write_fmt(format_args!("unexpected token, expected {expected:?}")),
             },
@@ -64,7 +68,7 @@ impl<'src> Error<'src> {
     pub(crate) fn new(kind: ErrorKind<'src>, token: &Token) -> Self {
         Self {
             kind,
-            span: token.span.clone(),
+            span: token.span,
         }
     }
 }
@@ -73,6 +77,7 @@ impl<'src> Error<'src> {
 #[derive(Debug, PartialEq)]
 /// Represents the different kinds of parse errors.
 pub enum ErrorKind<'src> {
+    BuiltinTagOverwrite(&'src str),
     /// Indicates an invalid color was encountered.
     InvalidColor(&'src str),
     /// Indicates an invalid number was encountered.

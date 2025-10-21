@@ -3,12 +3,13 @@ use std::fmt::Display;
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
-    pub row: u16,
-    pub col: u16,
+    pub row: u32,
+    pub col: u32,
 }
 
 impl Position {
-    pub fn new(row: u16, col: u16) -> Self {
+    #[must_use]
+    pub fn new(row: u32, col: u32) -> Self {
         Self { row, col }
     }
 }

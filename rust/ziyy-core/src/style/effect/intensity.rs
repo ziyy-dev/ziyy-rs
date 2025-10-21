@@ -14,8 +14,8 @@ pub enum Intensity {
 }
 
 impl Intensity {
-    pub(in crate::style) fn _as_str(&self, prev: Intensity) -> &str {
-        use Intensity::*;
+    pub(in crate::style) fn as_str2(&self, prev: Intensity) -> &str {
+        use Intensity::{Bold, Dim, NoBold, NoDim, None, Unset};
 
         match (prev, self) {
             (Bold, Dim) => "\x1b[22;2m",
@@ -32,13 +32,15 @@ impl Intensity {
     }
 
     pub(in crate::style) fn _as_bytes(&self, prev: Intensity) -> &[u8] {
-        self._as_str(prev).as_bytes()
+        self.as_str2(prev).as_bytes()
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
-        self._as_str(Intensity::None)
+        self.as_str2(Intensity::None)
     }
 
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
@@ -46,7 +48,7 @@ impl Intensity {
 
 impl FromU8 for Intensity {
     fn from_u8(value: u8) -> Self {
-        use Intensity::*;
+        use Intensity::{Bold, Dim, NoBold, NoDim, None, Unset};
 
         match value {
             0 => None,
@@ -64,7 +66,7 @@ impl Add for Intensity {
     type Output = Intensity;
 
     fn add(self, rhs: Self) -> Self::Output {
-        use Intensity::*;
+        use Intensity::{Bold, Dim, NoBold, NoDim, None, Unset};
 
         match (self, rhs) {
             (None, Unset | NoBold | NoDim) => None,
@@ -95,7 +97,7 @@ impl Sub for Intensity {
     type Output = Intensity;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        use Intensity::*;
+        use Intensity::None;
 
         match (self, rhs) {
             (None, rhs) => !rhs,
@@ -109,7 +111,7 @@ impl Not for Intensity {
     type Output = Intensity;
 
     fn not(self) -> Self::Output {
-        use Intensity::*;
+        use Intensity::{Bold, Dim, NoBold, NoDim, None};
 
         match self {
             Bold => NoBold,

@@ -33,6 +33,7 @@ pub struct Context<'src> {
 }
 
 impl<'src> Context<'src> {
+    #[must_use]
     pub fn new(source: &'src str, bindings: Option<HashMap<&'src str, Style>>) -> Self {
         Self {
             scanner: Scanner::new(source),
@@ -55,6 +56,12 @@ pub struct Parser {
     pub(crate) block_start: bool,
 }
 
+impl Default for Parser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'src> Parser {
     /// Creates a new Ziyy Parser.
     ///
@@ -66,6 +73,7 @@ impl<'src> Parser {
     /// # Returns
     ///
     /// A new instance of `Parser`.
+    #[must_use]
     pub fn new() -> Parser {
         Parser {
             buf: String::new(),
@@ -81,7 +89,7 @@ impl<'src> Parser {
     /// Returns an `Error` if parsing fails.
     pub fn parse(&mut self, mut ctx: Context<'src>) -> Result<String, Error<'src>> {
         loop {
-            let parsed = self.parse_chunk(&mut ctx)?;
+            let parsed = Parser::parse_chunk(&mut ctx)?;
             match parsed {
                 Chunk::Comment(_) => {}
                 Chunk::Escape(ch) => {
@@ -93,7 +101,7 @@ impl<'src> Parser {
                 Chunk::Tag(tag) => match tag.kind {
                     TagKind::Open => self.parse_open_tag(&mut ctx, tag)?,
                     TagKind::Close => self.parse_close_tag(&mut ctx, &tag)?,
-                    TagKind::SelfClose => self.parse_open_and_close_tag(&mut ctx, tag)?,
+                    TagKind::SelfClose => self.parse_open_and_close_tag(&mut ctx, &tag)?,
                 },
 
                 Chunk::Text(text) => {
@@ -103,18 +111,16 @@ impl<'src> Parser {
                 }
 
                 Chunk::WhiteSpace(ws) => {
-                    let chunk = self.parse_next_chunk(&mut ctx)?;
+                    let chunk = Parser::parse_next_chunk(&mut ctx)?;
                     if self.pre_ws > 0 {
                         self.buf.push_str(ws);
-                    } else {
-                        if let Chunk::Eof = chunk {
-                            if ws.contains('\n') {
-                                self.buf.push('\n');
-                            }
-                        } else if !self.skip_ws {
-                            self.buf.push(' ');
-                            self.skip_ws = true;
+                    } else if let Chunk::Eof = chunk {
+                        if ws.contains('\n') {
+                            self.buf.push('\n');
                         }
+                    } else if !self.skip_ws {
+                        self.buf.push(' ');
+                        self.skip_ws = true;
                     }
                 }
 
@@ -158,7 +164,7 @@ impl<'src> Parser {
         } else {
             Err(Error {
                 kind: err,
-                span: tag.span.clone(),
+                span: tag.span,
             })
         }
     }
@@ -173,7 +179,7 @@ impl<'src> Parser {
         let prev = ctx.state.previous_style();
         let new = prev + style;
         let delta = style - prev;
-        self.buf.push_str(&delta.to_string());
+        self.buf.push_str(&delta.to_string2());
         ctx.state.push(tag_name.clone(), new, delta);
     }
 }
@@ -271,7 +277,6 @@ mod tests {
             kind: TokenKind::TEXT,
             span: Span::default(),
             content: "",
-            custom: 0,
         };
         let result = expect_token(&token, TokenKind::TEXT);
         assert!(result.is_ok());
@@ -283,7 +288,6 @@ mod tests {
             kind: TokenKind::TEXT,
             span: Span::default(),
             content: "",
-            custom: 0,
         };
         let result = expect_token(&token, TokenKind::B);
         assert!(result.is_err());

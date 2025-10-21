@@ -2,6 +2,7 @@ use super::span::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(non_camel_case_types)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum TokenKind {
     // Single-character tokens.
     LEFT_PAREN,
@@ -98,28 +99,9 @@ pub enum TokenKind {
     EOF,
 }
 
-impl TokenKind {
-    #[must_use]
-    pub fn as_u8(&self) -> u8 {
-        *self as u8
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Token<'src> {
     pub kind: TokenKind,
     pub content: &'src str,
-    pub custom: u16,
     pub span: Span,
-}
-
-impl<'src> Token<'src> {
-    pub fn new(kind: TokenKind, content: &'src str, span: Span) -> Self {
-        Token {
-            kind,
-            content,
-            span,
-            custom: 0,
-        }
-    }
 }

@@ -1,9 +1,18 @@
 use crate::error::ErrorKind;
+use crate::parser::builtins::is_builtin_tag;
 use crate::scanner::token::{Token, TokenKind};
 use crate::scanner::Scanner;
 use crate::{char_from_u32, Error};
-use crate::{number, style::*};
-use TokenKind::*;
+use crate::{
+    number,
+    style::{
+        Ansi256, Blink, Color, Delete, FontStyle, Hide, Intensity, Invert, Rgb, Style, Underline,
+    },
+};
+use TokenKind::{
+    B, BLACK, BLUE, C, CLASS, CYAN, D, DOUBLE, FIXED, GREAT, GREEN, H, HREF, I, ID, IDENTIFIER,
+    INDENT, K, MAGENTA, N, R, RED, RGB, S, U, UU, WHITE, X, YELLOW,
+};
 
 use super::{
     expect_token,
@@ -23,10 +32,7 @@ pub enum Chunk<'src> {
 
 impl<'src> Parser {
     #[allow(clippy::too_many_lines)]
-    pub(super) fn parse_chunk(
-        &mut self,
-        ctx: &mut Context<'src>,
-    ) -> Result<Chunk<'src>, Error<'src>> {
+    pub(super) fn parse_chunk(ctx: &mut Context<'src>) -> Result<Chunk<'src>, Error<'src>> {
         if let Some(chunk) = ctx.next_chunk.clone() {
             ctx.next_chunk = None;
             return Ok(chunk);
@@ -168,46 +174,46 @@ impl<'src> Parser {
             match token.kind {
                 // styles
                 B => {
-                    assign_effect!(set_intensity, Intensity::Bold)
+                    assign_effect!(set_intensity, Intensity::Bold);
                 }
                 D => {
-                    assign_effect!(set_intensity, Intensity::Dim)
+                    assign_effect!(set_intensity, Intensity::Dim);
                 }
                 I => {
-                    assign_effect!(set_font_style, FontStyle::Italics)
+                    assign_effect!(set_font_style, FontStyle::Italics);
                 }
                 U => {
-                    assign_effect!(set_underline, Underline::Single)
+                    assign_effect!(set_underline, Underline::Single);
                 }
                 K => {
-                    assign_effect!(set_blink, Blink::Slow)
+                    assign_effect!(set_blink, Blink::Slow);
                 }
                 R => {
-                    assign_effect!(set_invert, Invert::Set)
+                    assign_effect!(set_invert, Invert::Set);
                 }
                 H => {
-                    assign_effect!(set_hide, Hide::Set)
+                    assign_effect!(set_hide, Hide::Set);
                 }
                 S => {
-                    assign_effect!(set_delete, Delete::Set)
+                    assign_effect!(set_delete, Delete::Set);
                 }
                 UU => {
-                    assign_effect!(set_underline, Underline::Double)
+                    assign_effect!(set_underline, Underline::Double);
                 }
                 DOUBLE => {
                     if tag_name == TagName::U {
-                        assign_effect!(set_underline, Underline::Double)
+                        assign_effect!(set_underline, Underline::Double);
                     } else {
-                        consume_declaration!()
+                        consume_declaration!();
                     }
                 }
 
                 // colors
                 C => {
-                    assign_color!(set_fg_color)
+                    assign_color!(set_fg_color);
                 }
                 X => {
-                    assign_color!(set_bg_color)
+                    assign_color!(set_bg_color);
                 }
                 BLACK | BLUE | CYAN | GREEN | MAGENTA | RED | WHITE | YELLOW => {
                     let color = Color::parse(token.content, token.span)?;
@@ -285,7 +291,7 @@ impl<'src> Parser {
                     if tag_name == TagName::Br {
                         assign_prop_value!(custom);
                     } else {
-                        consume_declaration!()
+                        consume_declaration!();
                     }
                 }
                 HREF => {
@@ -293,15 +299,34 @@ impl<'src> Parser {
                     if tag_name == TagName::A {
                         assign_prop_value!(custom);
                     } else {
-                        consume_declaration!()
+                        consume_declaration!();
                     }
                 }
                 ID => {
                     // name of binding to declare
                     if tag_name == TagName::Let {
-                        assign_prop_value!(custom);
+                        {
+                            tag.custom = Value::Bool;
+                            token = ctx.scanner.scan_token()?;
+                            tag.span += token.span;
+                            if token.kind == TokenKind::EQUAL {
+                                token = ctx.scanner.scan_token()?;
+                                tag.span += token.span;
+                                expect_token(&token, TokenKind::STRING)?;
+                                let end = token.content.len() - 1;
+                                let s = &token.content[1..end];
+                                if is_builtin_tag(s) {
+                                    return Err(Error {
+                                        kind: ErrorKind::BuiltinTagOverwrite(s),
+                                        span: token.span,
+                                    });
+                                }
+                                tag.custom = Value::Some(s);
+                                token = ctx.scanner.scan_token()?;
+                            }
+                        };
                     } else {
-                        consume_declaration!()
+                        consume_declaration!();
                     }
                 }
                 INDENT => {
@@ -309,7 +334,7 @@ impl<'src> Parser {
                     if tag_name == TagName::P {
                         assign_prop_value!(custom);
                     } else {
-                        consume_declaration!()
+                        consume_declaration!();
                     }
                 }
 
@@ -356,18 +381,19 @@ impl<'src> Parser {
         Ok(Chunk::Tag(tag))
     }
 
-    pub(super) fn parse_next_chunk(
-        &mut self,
-        ctx: &mut Context<'src>,
-    ) -> Result<Chunk<'src>, Error<'src>> {
-        let chunk = self.parse_chunk(ctx)?;
+    pub(super) fn parse_next_chunk(ctx: &mut Context<'src>) -> Result<Chunk<'src>, Error<'src>> {
+        let chunk = Parser::parse_chunk(ctx)?;
         ctx.next_chunk = Some(chunk.clone());
         Ok(chunk)
     }
 }
 
 pub(crate) fn match_tag_name<'src>(token: &Token<'src>) -> Result<TagName<'src>, Error<'src>> {
-    use TokenKind::*;
+    use TokenKind::{
+        A, B, BLACK, BLUE, BR, C, CLASS, CODE, CURLY, CYAN, D, DASHED, DIV, DOTTED, DOUBLE, FIXED,
+        GREEN, H, HREF, I, ID, IDENTIFIER, INDENT, K, LET, MAGENTA, N, NONE, P, PRE, R, RED, RGB,
+        S, SINGLE, SPAN, U, WHITE, X, YELLOW, ZIYY,
+    };
 
     let kind = match token.kind {
         A => TagName::A,

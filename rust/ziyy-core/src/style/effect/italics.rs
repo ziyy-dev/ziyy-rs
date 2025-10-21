@@ -11,8 +11,9 @@ pub enum FontStyle {
 }
 
 impl FontStyle {
+    #[must_use]
     pub fn as_str(&self) -> &str {
-        use FontStyle::*;
+        use FontStyle::{Fraktur, Italics, None, Unset};
 
         match self {
             None => "",
@@ -22,6 +23,7 @@ impl FontStyle {
         }
     }
 
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
@@ -29,7 +31,7 @@ impl FontStyle {
 
 impl FromU8 for FontStyle {
     fn from_u8(value: u8) -> Self {
-        use FontStyle::*;
+        use FontStyle::{Fraktur, Italics, None, Unset};
 
         match value {
             0 => None,
@@ -45,7 +47,7 @@ impl Add for FontStyle {
     type Output = FontStyle;
 
     fn add(self, rhs: Self) -> Self::Output {
-        use FontStyle::*;
+        use FontStyle::{None, Unset};
 
         match (self, rhs) {
             (None, Unset) => None,
@@ -60,7 +62,7 @@ impl Sub for FontStyle {
     type Output = FontStyle;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        use FontStyle::*;
+        use FontStyle::None;
 
         match (self, rhs) {
             (None, rhs) => !rhs,
@@ -74,11 +76,10 @@ impl Not for FontStyle {
     type Output = FontStyle;
 
     fn not(self) -> Self::Output {
-        use FontStyle::*;
+        use FontStyle::{Fraktur, Italics, None, Unset};
 
         match self {
-            Italics => Unset,
-            Fraktur => Unset,
+            Italics | Fraktur => Unset,
             _ => None,
         }
     }

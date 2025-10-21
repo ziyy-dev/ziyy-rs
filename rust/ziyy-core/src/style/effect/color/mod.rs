@@ -33,6 +33,7 @@ pub enum ColorKind {
 impl Color {
     const UNSET: Color = Color::AnsiColor(AnsiColor::Default);
 
+    #[must_use]
     pub fn to_string(&self, kind: ColorKind) -> String {
         match self {
             Color::Rgb(rgb) => rgb.to_string(kind),
@@ -43,11 +44,12 @@ impl Color {
         }
     }
 
+    #[must_use]
     pub fn to_vec(&self, kind: ColorKind) -> Vec<u8> {
         self.to_string(kind).into_bytes()
     }
 
-    pub fn parse<'src>(source: &'src str, span: Span) -> Result<'src, Self> {
+    pub(crate) fn parse<'src>(source: &'src str, span: Span) -> Result<'src, Self> {
         let mut scanner = Scanner::new(source);
         scanner.text_mode = false;
         scanner.parse_colors = true;
@@ -91,7 +93,7 @@ impl Color {
             _ => {
                 return Err(Error {
                     kind: ErrorKind::InvalidColor(source),
-                    span: span,
+                    span,
                 })
             }
         };
@@ -139,14 +141,14 @@ impl FromU32 for Color {
     }
 }
 
-impl Into<u32> for Color {
-    fn into(self) -> u32 {
-        match self {
+impl From<Color> for u32 {
+    fn from(val: Color) -> Self {
+        match val {
             Color::None => 0,
             Color::Rgb(Rgb(r, g, b)) => {
-                0b1 | ((r as u32) << 1) | ((g as u32) << 9) | ((b as u32) << 17)
+                0b1 | (u32::from(r) << 1) | (u32::from(g) << 9) | (u32::from(b) << 17)
             }
-            Color::Ansi256(Ansi256(n)) => 0b10 | (n as u32) << 2,
+            Color::Ansi256(Ansi256(n)) => 0b10 | u32::from(n) << 2,
             Color::AnsiColor(n) => ((n as u32) + 1) << 2,
             Color::Unset => (9 + 1) << 2,
         }
@@ -157,7 +159,7 @@ impl Add for Color {
     type Output = Color;
 
     fn add(self, rhs: Self) -> Self::Output {
-        use Color::*;
+        use Color::{None, Unset};
 
         match (self, rhs) {
             (None, Color::UNSET | Unset) => None,
@@ -172,10 +174,10 @@ impl Sub for Color {
     type Output = Color;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        use Color::*;
+        use Color::None;
 
         match (self, rhs) {
-            (None, rhs) => None,
+            (None, _) => None,
             (lhs, rhs) if lhs == rhs => None,
             (lhs, _) => lhs,
         }
@@ -186,7 +188,7 @@ impl Not for Color {
     type Output = Color;
 
     fn not(self) -> Self::Output {
-        use Color::*;
+        use Color::{None, Unset};
 
         match self {
             None => None,

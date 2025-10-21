@@ -1,10 +1,13 @@
+use std::collections::HashMap;
+
 use super::parse_chunk::Chunk;
 use super::tag::Value;
 use super::{Context, Parser, Tag, TagKind, TagName, BUILTIN_STYLES};
-use crate::num::str_to_u32;
+use crate::num::str_to_u8;
 use crate::{get_num2, Error, ErrorKind};
 
 impl<'src> Parser {
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn parse_open_tag(
         &mut self,
         ctx: &mut Context<'src>,
@@ -12,20 +15,17 @@ impl<'src> Parser {
     ) -> Result<(), Error<'src>> {
         match tag.name {
             TagName::A => {
-                let _ = self.buf.push_str("\x1b]8;;");
-                let _ = self
-                    .buf
-                    .push_str(if let Value::Some(ref href) = tag.custom {
-                        href
-                    } else {
-                        ""
-                    });
-                let _ = self.buf.push_str("\x1b\\");
+                self.buf.push_str("\x1b]8;;");
+                self.buf.push_str(if let Value::Some(href) = tag.custom {
+                    href
+                } else {
+                    ""
+                });
+                self.buf.push_str("\x1b\\");
                 loop {
-                    let chunk = self.parse_chunk(ctx)?;
+                    let chunk = Parser::parse_chunk(ctx)?;
                     match chunk {
-                        Chunk::Comment(_) => {}
-                        Chunk::Escape(_) => {}
+                        Chunk::Comment(_) | Chunk::Escape(_) => {}
                         Chunk::Tag(tag2) => {
                             if tag2.name == TagName::A && tag2.kind == TagKind::Close {
                                 break;
@@ -33,11 +33,11 @@ impl<'src> Parser {
                         }
 
                         Chunk::Text(text) => {
-                            let _ = self.buf.push_str(text);
+                            self.buf.push_str(text);
                         }
 
                         Chunk::WhiteSpace(ws) => {
-                            let _ = self.buf.push_str(ws);
+                            self.buf.push_str(ws);
                         }
 
                         Chunk::Eof => {
@@ -47,7 +47,7 @@ impl<'src> Parser {
                             });
                         }
                     }
-                    let _ = self.buf.push_str("\x1b]8;;\x1b\\");
+                    self.buf.push_str("\x1b]8;;\x1b\\");
                 }
             }
             TagName::Any(s) => {
@@ -79,15 +79,13 @@ impl<'src> Parser {
                     self.pre_ws -= 1;
                 }
 
-                if let Value::Some(ref s) = tag.class {
-                    for class in s.split(|ch| ch == ' ').filter(|s| !s.is_empty()).rev() {
+                if let Value::Some(s) = tag.class {
+                    for class in s.split(' ').filter(|s| !s.is_empty()).rev() {
                         if let Some(btag) = BUILTIN_STYLES.get(class) {
                             tag.inherit(btag);
-                        } else {
-                            if let Some(bindings) = &ctx.bindings {
-                                if let Some(btag) = bindings.get(class) {
-                                    tag.inherit(btag);
-                                }
+                        } else if let Some(bindings) = &ctx.bindings {
+                            if let Some(btag) = bindings.get(class) {
+                                tag.inherit(btag);
                             }
                         }
                     }
@@ -96,16 +94,42 @@ impl<'src> Parser {
             }
             TagName::Br => {
                 if let Value::Some(val) = tag.custom {
-                    let n: usize = get_num2!(str_to_u32(&val, 10), tag) as usize;
-                    let _ = self.buf.push_str(&"\n".repeat(n));
+                    let n: usize = get_num2!(str_to_u8(val, 10), tag) as usize;
+                    self.buf.push_str(&"\n".repeat(n));
                 } else {
-                    let _ = self.buf.push('\n');
+                    self.buf.push('\n');
                 }
             }
-            TagName::Let => {}
+            TagName::Let => loop {
+                let chunk = Parser::parse_chunk(ctx)?;
+                match chunk {
+                    Chunk::Tag(tag2) => {
+                        if tag2.name == TagName::Let && tag2.kind == TagKind::Close {
+                            if ctx.bindings.is_none() {
+                                ctx.bindings = Some(HashMap::with_capacity(10));
+                            }
+
+                            if let Value::Some(name) = tag.custom {
+                                ctx.bindings.as_mut().unwrap().insert(name, tag.style);
+                            }
+                            self.skip_ws = true;
+                            break;
+                        }
+                    }
+
+                    Chunk::Eof => {
+                        return Err(Error {
+                            kind: ErrorKind::UnexpectedEof,
+                            span: tag.span,
+                        });
+                    }
+
+                    _ => {}
+                }
+            },
             TagName::Div | TagName::P | TagName::Pre => {
                 if !self.block_start {
-                    let _ = self.buf.push('\n');
+                    self.buf.push('\n');
                     self.block_start = true;
                 }
 
@@ -113,15 +137,13 @@ impl<'src> Parser {
                     self.pre_ws += 1;
                 }
 
-                if let Value::Some(ref s) = tag.class {
-                    for class in s.split(|ch| ch == ' ').filter(|s| !s.is_empty()).rev() {
+                if let Value::Some(s) = tag.class {
+                    for class in s.split(' ').filter(|s| !s.is_empty()).rev() {
                         if let Some(btag) = BUILTIN_STYLES.get(class) {
                             tag.inherit(btag);
-                        } else {
-                            if let Some(bindings) = &ctx.bindings {
-                                if let Some(btag) = bindings.get(class) {
-                                    tag.inherit(btag);
-                                }
+                        } else if let Some(bindings) = &ctx.bindings {
+                            if let Some(btag) = bindings.get(class) {
+                                tag.inherit(btag);
                             }
                         }
                     }
@@ -129,12 +151,12 @@ impl<'src> Parser {
 
                 match tag.custom {
                     Value::Bool => {
-                        let _ = self.buf.push('\t');
+                        self.buf.push('\t');
                     }
 
                     Value::Some(val) => {
-                        let n: usize = get_num2!(str_to_u32(&val, 10), tag) as usize;
-                        let _ = self.buf.push_str(&" ".repeat(n));
+                        let n: usize = get_num2!(str_to_u8(val, 10), tag) as usize;
+                        self.buf.push_str(&" ".repeat(n));
                     }
 
                     Value::None => {}

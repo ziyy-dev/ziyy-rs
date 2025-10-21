@@ -22,7 +22,7 @@ pub use crate::scanner::span::Span;
 pub use crate::style::*;
 pub use crate::ziyy as style;
 
-use num::str_to_u32;
+use num::{str_to_u32, str_to_u8};
 
 mod error;
 mod num;
@@ -56,6 +56,7 @@ mod style;
 /// # Returns
 ///
 /// A `String` containing the styled text.
+#[must_use]
 pub fn ziyy(text: &str) -> String {
     let mut parser = Parser::new();
 

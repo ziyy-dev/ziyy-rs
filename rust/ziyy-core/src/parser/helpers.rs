@@ -36,7 +36,7 @@ macro_rules! char_from_u32 {
 macro_rules! number {
     ( $text:expr, $radix:expr, $token:expr ) => {
         match $token.kind {
-            TokenKind::NUMBER => $crate::get_num!($crate::str_to_u32($text, $radix), $token) as u8,
+            TokenKind::NUMBER => $crate::get_num!($crate::str_to_u8($text, $radix), $token) as u8,
             _ => {
                 return Err(Error::new(
                     ErrorKind::UnexpectedToken {

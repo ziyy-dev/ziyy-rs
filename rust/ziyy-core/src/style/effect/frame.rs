@@ -11,8 +11,9 @@ pub enum Frame {
 }
 
 impl Frame {
+    #[must_use]
     pub fn as_str(&self) -> &str {
-        use Frame::*;
+        use Frame::{Encircled, Framed, None, Unset};
 
         match self {
             None => "",
@@ -22,6 +23,7 @@ impl Frame {
         }
     }
 
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
@@ -29,7 +31,7 @@ impl Frame {
 
 impl FromU8 for Frame {
     fn from_u8(value: u8) -> Self {
-        use Frame::*;
+        use Frame::{Encircled, Framed, None, Unset};
 
         match value {
             0 => None,
@@ -45,7 +47,7 @@ impl Add for Frame {
     type Output = Frame;
 
     fn add(self, rhs: Self) -> Self::Output {
-        use Frame::*;
+        use Frame::{None, Unset};
 
         match (self, rhs) {
             (None, Unset) => None,
@@ -60,7 +62,7 @@ impl Sub for Frame {
     type Output = Frame;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        use Frame::*;
+        use Frame::None;
 
         match (self, rhs) {
             (None, rhs) => !rhs,
@@ -74,7 +76,7 @@ impl Not for Frame {
     type Output = Frame;
 
     fn not(self) -> Self::Output {
-        use Frame::*;
+        use Frame::{Encircled, Framed, None, Unset};
 
         match self {
             Framed => Unset,

@@ -1,4 +1,6 @@
-#![allow(unused)]
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_possible_truncation)]
 use convert::{FromU32, FromU8};
 pub use effect::*;
 use std::{
@@ -33,17 +35,20 @@ macro_rules! define {
         fn $set:tt($offset:expr, $offset2:expr, $shift:expr);
         fn $get:tt() -> Color;
     ) => {
+
         pub fn $set(&mut self, val: Color) {
+            static MASK: u8 = !(MAX_ONE_BIT << $shift);
+
             let n: u32 = val.into();
             let b = (n >> 1).to_le_bytes();
             self.0[$offset] = b[0];
             self.0[$offset + 1] = b[1];
             self.0[$offset + 2] = b[2];
 
-            static MASK: u8 = !(MAX_ONE_BIT << $shift);
             self.0[$offset2] = (self.0[$offset2] & MASK) | ((n as u8 & MAX_ONE_BIT) << $shift);
         }
 
+        #[must_use]
         pub fn $get(&self) -> Color {
             let mut b = [0; 4];
             b[0] = self.0[$offset];
@@ -81,13 +86,14 @@ macro_rules! define {
             self.0[$offset] = (self.0[$offset] & MASK) | ((val as u8) << $shift);
         }
 
-        $vis2 fn $get(&self) -> $t {
+        #[must_use] $vis2 fn $get(&self) -> $t {
             $t::from_u8((self.0[$offset] >> $shift) & $max)
         }
     };
 }
 
 impl Style {
+    #[must_use]
     pub const fn new() -> Self {
         Style([0; 14])
     }
@@ -197,13 +203,14 @@ impl Style {
 }
 
 impl Style {
-    pub fn to_string(&self) -> String {
+    #[must_use]
+    pub(crate) fn to_string2(&self) -> String {
         let mut s = String::with_capacity(128);
         s.push_str("\x1b[");
 
         // FIXME: reset all styles due to empty string
         let style = [
-            cut(self.intensity().as_str()),
+            cut(self.intensity().as_str2(self.prev_intensity())),
             cut(self.font_style().as_str()),
             cut(self.underline().as_str()),
             cut(self.blink().as_str()),
@@ -243,7 +250,7 @@ impl Add for Style {
 
     fn add(mut self, rhs: Self) -> Self::Output {
         self.set_prev_intensity(match self.intensity() {
-            intensity @ Intensity::None | intensity @ Intensity::Bold => intensity,
+            intensity @ (Intensity::None | Intensity::Bold) => intensity,
             _ => Intensity::None,
         });
 
@@ -275,7 +282,7 @@ impl Sub for Style {
 
     fn sub(mut self, rhs: Self) -> Self::Output {
         self.set_prev_intensity(match rhs.intensity() {
-            intensity @ Intensity::None | intensity @ Intensity::Bold => intensity,
+            intensity @ (Intensity::None | Intensity::Bold) => intensity,
             _ => Intensity::None,
         });
 
@@ -362,9 +369,9 @@ impl Debug for Style {
 impl Display for Style {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
-            f.write_str(&self.not().to_string())
+            f.write_str(&self.not().to_string2())
         } else {
-            f.write_str(&self.to_string())
+            f.write_str(&self.to_string2())
         }
     }
 }

@@ -15,6 +15,7 @@ macro_rules! define_switch {
         }
 
         impl $name {
+            #[must_use]
             pub fn as_str(&self) -> &str {
                 use $name::*;
 
@@ -24,10 +25,12 @@ macro_rules! define_switch {
                 }
             }
 
+            #[must_use]
             pub fn as_bytes(&self) -> &[u8] {
                 self.as_str().as_bytes()
             }
 
+            #[must_use]
             pub fn is_set(&self) -> bool {
                 use $name::*;
 
@@ -37,6 +40,7 @@ macro_rules! define_switch {
                 }
             }
 
+            #[must_use]
             pub fn is_unset(&self) -> bool {
                 !self.is_set()
             }

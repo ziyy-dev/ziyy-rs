@@ -18,8 +18,12 @@ pub enum Font {
 }
 
 impl Font {
+    #[must_use]
     pub fn as_str(&self) -> &str {
-        use Font::*;
+        use Font::{
+            EighthAlt, FifthAlt, FirstAlt, FourthAlt, NinthAlt, None, Primary, SecondAlt,
+            SeventhAlt, SixthAlt, ThirdAlt,
+        };
 
         match self {
             None => "",
@@ -36,6 +40,7 @@ impl Font {
         }
     }
 
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
@@ -43,7 +48,10 @@ impl Font {
 
 impl FromU8 for Font {
     fn from_u8(value: u8) -> Self {
-        use Font::*;
+        use Font::{
+            EighthAlt, FifthAlt, FirstAlt, FourthAlt, NinthAlt, None, Primary, SecondAlt,
+            SeventhAlt, SixthAlt, ThirdAlt,
+        };
 
         match value {
             0 => None,
@@ -66,7 +74,7 @@ impl Add for Font {
     type Output = Font;
 
     fn add(self, rhs: Self) -> Self::Output {
-        use Font::*;
+        use Font::{None, Primary};
 
         match (self, rhs) {
             (None, Primary) => None,
@@ -81,7 +89,7 @@ impl Sub for Font {
     type Output = Font;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        use Font::*;
+        use Font::None;
 
         match (self, rhs) {
             (None, rhs) => !rhs,
@@ -95,7 +103,7 @@ impl Not for Font {
     type Output = Font;
 
     fn not(self) -> Self::Output {
-        use Font::*;
+        use Font::{None, Primary};
 
         match self {
             None | Primary => None,

@@ -1,8 +1,5 @@
 use super::super::convert::FromU8;
-use std::{
-    io::{self, Write},
-    ops::{Add, Not, Sub},
-};
+use std::ops::{Add, Not, Sub};
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub enum Underline {
@@ -17,8 +14,9 @@ pub enum Underline {
 }
 
 impl Underline {
+    #[must_use]
     pub fn as_str(&self) -> &str {
-        use Underline::*;
+        use Underline::{Curly, Dashed, Dotted, Double, None, Single, Unset};
 
         match self {
             None => "",
@@ -31,6 +29,7 @@ impl Underline {
         }
     }
 
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
@@ -38,7 +37,7 @@ impl Underline {
 
 impl FromU8 for Underline {
     fn from_u8(value: u8) -> Self {
-        use Underline::*;
+        use Underline::{Curly, Dashed, Dotted, Double, None, Single, Unset};
 
         match value {
             0 => None,
@@ -57,7 +56,7 @@ impl Add for Underline {
     type Output = Underline;
 
     fn add(self, rhs: Self) -> Self::Output {
-        use Underline::*;
+        use Underline::None;
 
         match (self, rhs) {
             (None, rhs) => rhs,
@@ -71,7 +70,7 @@ impl Sub for Underline {
     type Output = Underline;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        use Underline::*;
+        use Underline::None;
 
         match (self, rhs) {
             (None, rhs) => !rhs,
@@ -85,7 +84,7 @@ impl Not for Underline {
     type Output = Underline;
 
     fn not(self) -> Self::Output {
-        use Underline::*;
+        use Underline::{Curly, Dashed, Dotted, Double, None, Single, Unset};
 
         match self {
             None => None,

@@ -3,7 +3,10 @@
 use std::fmt::Display;
 
 use crate::scanner::span::Span;
-use crate::style::*;
+use crate::style::{
+    Ansi256, AnsiColor, Blink, Color, Delete, Font, FontStyle, Frame, Hide, Intensity, Invert,
+    Overline, PropSpace, Reserved1, Reserved2, Rgb, Style, Underline,
+};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Value<'src> {
@@ -92,18 +95,16 @@ impl<'src> Tag<'src> {
         // inherit!(set_ideogram ideogram);
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn parse_from_ansi(source: &str, span: Span) -> Self {
-        let mut parts = source.split(";").peekable();
+        let mut parts = source.split(';').peekable();
 
         let mut style = Style::default();
 
         loop {
             let part = parts.next();
 
-            let part = match part {
-                Some(p) => p,
-                None => break,
-            };
+            let Some(part) = part else { break };
 
             match part {
                 "" | "0" => style = Style::default(),
@@ -150,7 +151,7 @@ impl<'src> Tag<'src> {
                 "38" => {
                     if part == "2" {
                         let r = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -158,7 +159,7 @@ impl<'src> Tag<'src> {
                         };
 
                         let g = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -166,7 +167,7 @@ impl<'src> Tag<'src> {
                         };
 
                         let b = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -178,7 +179,7 @@ impl<'src> Tag<'src> {
 
                     if part == "5" {
                         let fixed = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -188,7 +189,7 @@ impl<'src> Tag<'src> {
                         style.set_fg_color(Color::Ansi256(Ansi256(fixed)));
                     }
                 }
-                "39" => style.set_bg_color(Color::Unset),
+                "39" => style.set_fg_color(Color::Unset),
                 "40" => style.set_bg_color(Color::AnsiColor(AnsiColor::Black)),
                 "41" => style.set_bg_color(Color::AnsiColor(AnsiColor::Red)),
                 "42" => style.set_bg_color(Color::AnsiColor(AnsiColor::Green)),
@@ -200,7 +201,7 @@ impl<'src> Tag<'src> {
                 "48" => {
                     if part == "2" {
                         let r = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -208,7 +209,7 @@ impl<'src> Tag<'src> {
                         };
 
                         let g = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -216,7 +217,7 @@ impl<'src> Tag<'src> {
                         };
 
                         let b = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -228,7 +229,7 @@ impl<'src> Tag<'src> {
 
                     if part == "5" {
                         let fixed = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -250,7 +251,7 @@ impl<'src> Tag<'src> {
                 "58" => {
                     if part == "2" {
                         let r = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -258,7 +259,7 @@ impl<'src> Tag<'src> {
                         };
 
                         let g = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -266,7 +267,7 @@ impl<'src> Tag<'src> {
                         };
 
                         let b = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -278,7 +279,7 @@ impl<'src> Tag<'src> {
 
                     if part == "5" {
                         let fixed = match parts.next() {
-                            Some(s) => match u8::from_str_radix(s, 10) {
+                            Some(s) => match s.parse::<u8>() {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             },
@@ -357,7 +358,7 @@ pub enum TagName<'src> {
     None,
 }
 
-impl<'src> Display for TagName<'src> {
+impl Display for TagName<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             TagName::A => "a",
@@ -381,8 +382,7 @@ impl<'src> Display for TagName<'src> {
             TagName::U => "u",
             TagName::X => "x",
             TagName::Ziyy => "ziyy",
-            TagName::Empty => "",
-            TagName::None => "",
+            TagName::Empty | TagName::None => "",
         })
     }
 }

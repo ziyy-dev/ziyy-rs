@@ -22,12 +22,10 @@ pub static BUILTIN_STYLES: LazyLock<HashMap<&str, Style>> = LazyLock::new(|| {
 #[inline]
 pub fn is_builtin_tag(s: &str) -> bool {
     let mut scanner = Scanner::new(s);
-    match scanner.scan_one() {
-        Some(token) => match match_tag_name(&token).ok() {
-            Some(name) => return !matches!(name, TagName::Any(_)),
-            None => {}
-        },
-        None => {}
+    if let Some(token) = scanner.scan_one() {
+        if let Ok(name) = match_tag_name(&token) {
+            return !matches!(name, TagName::Any(_));
+        }
     }
 
     false
