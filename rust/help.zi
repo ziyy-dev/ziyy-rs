@@ -1,18 +1,18 @@
 <ziyy>
-    <let name="bold:green" c="rgb(0,150,75)" b u />
-    <let name="cyan" c="rgb(0,150,150)" />
+    <let id="bold:green" c="rgb(0,150,75)" b u />
+    <let id="cyan" c="rgb(0,150,150)" />
 
     <p>{}</p>
     <br />
     <p>
-        <u src="bold:green">Usage:</u> <cyan><b>ziyy</b> <i>[OPTION]</i> \<FILE\></cyan>
+        <u class="bold:green">Usage:</u> <cyan><b>ziyy</b> <i>[OPTION]</i> \<FILE\></cyan>
     </p>
     <br />
 
-    <p src="bold:green">Options:</p>
-    <p tab="2" src="cyan" b>-V<e>,</e> --version</p>
-    <p tab="10">Print version info and exit</p>
-    <p tab="2" src="cyan" b>-h<e>,</e> --help</p>
-    <p tab="10">Print help</p>
+    <p class="bold:green">Options:</p>
+    <p indent="2" class="cyan" b>-V<e>,</e> --version</p>
+    <p indent="10">Print version info and exit</p>
+    <p indent="2" class="cyan" b>-h<e>,</e> --help</p>
+    <p indent="10">Print help</p>
     <br />
 </ziyy>

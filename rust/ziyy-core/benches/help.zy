@@ -1,0 +1,24 @@
+<ziyy>
+    <let id="g" b c="green" />
+    <let id="cy" c="cyan" />
+    <let id="bc" b c="cyan" />
+    <let id="w" b="false" c="none" />
+
+    <p>Ziyy's compiler.</p>
+
+    <br n="2" />
+
+    <g>Usage:</g>
+    <cy><b>{0}</b> [OPTIONS] \<FILE\>\n<e>       </e><b>{0}</b> [OPTIONS] <b>-c</b> [ARGS]...</cy>
+    
+    <br n="2" />
+
+    <g>Options:</g>\n
+        <bc><e>  -V, --version</e></bc><e>     Print version info and exit</e>\n
+        <bc><e>  -c, --cli</e></bc><e>         Read input from cli, defaults to stdin if no arguments</e>\n
+        <bc><e>  -e, --ansi</e></bc><e>        Parse escape sequences only</e>\n
+        <bc><e>  -n, --no-newline</e></bc><e>  Suppress emiting newline after output. Available only on --cli option</e>\n
+        <bc><e>  -h, --help</e></bc><e>        Print help</e>\n
+        <bc><e>      --strip</e></bc><e>       Strip styles from output</e>\n
+        <bc><e>      --tree</e></bc><e>        Print tree representation of output (unstable)</e>
+</ziyy>

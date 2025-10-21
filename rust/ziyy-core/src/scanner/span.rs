@@ -1,54 +1,51 @@
 use std::{
     fmt::Display,
-    ops::{Deref, DerefMut},
+    ops::{Add, AddAssign},
 };
 
 use super::position::Position;
 
-#[derive(Debug, Default, Clone, PartialEq)]
-#[repr(transparent)]
-pub struct Span(pub Vec<Position>);
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct Span {
+    pub start: Position,
+    pub end: Position,
+}
 
 impl Span {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(start: Position, end: Position) -> Self {
+        Self { start, end }
     }
 
-    pub fn add(&mut self, rhs: &Self) {
-        self.extend_from_slice(rhs);
-    }
-}
-
-impl Deref for Span {
-    type Target = Vec<Position>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    pub(crate) const fn initial() -> Self {
+        Self {
+            start: Position { row: 0, col: 0 },
+            end: Position { row: 0, col: 0 },
+        }
     }
 }
 
-impl DerefMut for Span {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+impl Add for Span {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new(self.start, rhs.end)
+    }
+}
+
+impl AddAssign for Span {
+    fn add_assign(&mut self, rhs: Self) {
+        self.end = rhs.end
+    }
+}
+
+impl AddAssign<Position> for Span {
+    fn add_assign(&mut self, rhs: Position) {
+        self.end = rhs
     }
 }
 
 impl Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.is_empty() {
-            Ok(())
-        } else if self.len() == 1 {
-            f.write_fmt(format_args!("{:?}", self.0[0]))
-        } else {
-            f.write_fmt(format_args!("{:?}", self.0[0]))?;
-            let i = self.len() - 1;
-            f.write_fmt(format_args!("..{:?}", self.0[i]))
-        }
-    }
-}
-
-impl From<&[Position]> for Span {
-    fn from(value: &[Position]) -> Self {
-        Span(Vec::from(value))
+        f.write_fmt(format_args!(":{}", self.start))
     }
 }

@@ -1,87 +1,8 @@
 #[macro_export]
 #[doc(hidden)]
-macro_rules! assign_prop_value {
-    ( $tag:expr, $prop:tt, $scanner:expr, $token:expr ) => {{
-        $tag.$prop = Value::Bool;
-
-        $token = $scanner.scan_token()?;
-        $tag.span.add(&$token.span);
-        if $token.kind == TokenKind::Equal {
-            $token = $scanner.scan_token()?;
-            $tag.span.add(&$token.span);
-            expect_token(&$token, TokenKind::String)?;
-            let end = $token.content.len() - 1;
-            $tag.$prop = Value::Some(own!($token.content[1..end]));
-            $token = $scanner.scan_token()?;
-        }
-    }};
-}
-
-#[macro_export]
-#[doc(hidden)]
-macro_rules! assign_prop_color {
-    ( $tag:expr, $style:expr, $prop:tt, $ch:tt, $scanner:expr, $token:expr ) => {{
-        $token = $scanner.scan_token()?;
-        $tag.span.add(&$token.span);
-        if $token.kind == TokenKind::Equal {
-            $token = $scanner.scan_token()?;
-            $tag.span.add(&$token.span);
-            expect_token(&$token, TokenKind::String)?;
-            let end = $token.content.len() - 1;
-
-            $style.$prop = Some(Color::try_from((
-                &$token.content[1..end],
-                Channel::$ch,
-                $token.span, // TODO: more accurate line reporting e.g. an array of positions for each token
-            ))?);
-            $token = $scanner.scan_token()?;
-        }
-    }};
-}
-
-#[macro_export]
-#[doc(hidden)]
-macro_rules! assign_prop_bool {
-    ( $tag:expr, $prop:tt, $scanner:expr, $token:expr ) => {{
-        $tag.$prop = true;
-
-        $token = $scanner.scan_token()?;
-        if $token.kind == TokenKind::Equal {
-            $token = $scanner.scan_token()?;
-            expect_token(&$token, TokenKind::String)?;
-            $token = $scanner.scan_token()?;
-        }
-    }};
-}
-
-#[macro_export]
-#[doc(hidden)]
-macro_rules! assign_prop_cond {
-    ( $tag:expr, $prop:tt, $v:expr, $scanner:expr, $token:expr ) => {{
-        $tag.$prop = $v;
-
-        $token = $scanner.scan_token()?;
-        if $token.kind == TokenKind::Equal {
-            $token = $scanner.scan_token()?;
-            expect_token(&$token, TokenKind::String)?;
-            $token = $scanner.scan_token()?;
-        }
-    }};
-}
-
-#[macro_export]
-#[doc(hidden)]
-macro_rules! own {
-    ( $x:expr ) => {
-        $x.to_owned()
-    };
-}
-
-#[macro_export]
-#[doc(hidden)]
 macro_rules! get_num {
     ( $kind:expr, $token:expr ) => {
-        $kind.map_err(|k| Error::new(k, $token))?
+        $kind.map_err(|k| Error::<'src>::new(k, $token))?
     };
 }
 
@@ -100,7 +21,7 @@ macro_rules! get_num2 {
 #[doc(hidden)]
 macro_rules! char_from_u32 {
     ( $text:expr, $radix:expr, $token:expr ) => {{
-        let num = get_num!(str_to_u32($text, $radix), $token);
+        let num = $crate::get_num!($crate::str_to_u32($text, $radix), $token);
         let unicode = char::from_u32(num);
         if let Some(ch) = unicode {
             Ok(Chunk::Escape(ch))
@@ -115,11 +36,13 @@ macro_rules! char_from_u32 {
 macro_rules! number {
     ( $text:expr, $radix:expr, $token:expr ) => {
         match $token.kind {
-            TokenKind::Number => Number::U8(get_num!(str_to_u32($text, $radix), $token) as u8),
-            TokenKind::PlaceHolder => Number::PlaceHolder(own!($token.content), $token.custom), // TODO: error on empty placeholders
+            TokenKind::NUMBER => $crate::get_num!($crate::str_to_u32($text, $radix), $token) as u8,
             _ => {
                 return Err(Error::new(
-                    ErrorKind::UnexpectedToken($token.kind, Some(TokenKind::Number)),
+                    ErrorKind::UnexpectedToken {
+                        expected: TokenKind::NUMBER,
+                        found: Some($token.content),
+                    },
                     $token,
                 ));
             }
@@ -129,7 +52,7 @@ macro_rules! number {
 
 /* #[cfg(test)]
 mod tests {
-    use crate::color::number::Number;
+    use crate::color::number::NUMBER;
     use crate::color::Color;
     use crate::error::Error;
     use crate::parser::parse_chunk::Chunk;
@@ -208,7 +131,7 @@ mod tests {
     #[test]
     fn test_get_num() {
         let kind = Ok(42);
-        let token = Token::new(TokenKind::Number, "42", Span::new());
+        let token = Token::new(TokenKind::NUMBER, "42", Span::new());
 
         let num = get_num!(kind, &token);
 
@@ -236,7 +159,7 @@ mod tests {
     fn test_char_from_u32() {
         let text = "41";
         let radix = 16;
-        let token = Token::new(TokenKind::Number, "41", Span::new());
+        let token = Token::new(TokenKind::NUMBER, "41", Span::new());
 
         let chunk = char_from_u32!(text, radix, &token).unwrap();
 
@@ -247,11 +170,11 @@ mod tests {
     fn test_number() {
         let text = "42";
         let radix = 10;
-        let token = Token::new(TokenKind::Number, "42", Span::new());
+        let token = Token::new(TokenKind::NUMBER, "42", Span::new());
 
         let number = number!(text, radix, &token);
 
-        assert_eq!(number, Number::U8(42));
+        assert_eq!(number, NUMBER::U8(42));
     }
 }
  */

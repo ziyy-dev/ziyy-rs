@@ -1,28 +1,31 @@
-use std::io::Write;
+use super::{Context, Parser, Tag, TagName};
+use crate::{error::ErrorKind, Error};
+use std::ops::Not;
 
-use crate::{error::ErrorKind, Error, Style};
-
-use super::{Parser, Tag};
-
-impl<T: AsRef<str>> Parser<T> {
-    pub(crate) fn parse_close_tag(&mut self, tag: &Tag) -> Result<(), Error> {
-        let ctag = self.state.current_tag_name();
-        //if ctag.is_none() {}
+impl<'src> Parser {
+    pub(crate) fn parse_close_tag(
+        &mut self,
+        ctx: &mut Context<'src>,
+        tag: &Tag<'src>,
+    ) -> Result<(), Error<'src>> {
+        let ctag = ctx.state.previous_tag_name();
         Self::expect_tag(
             tag,
             ctag.unwrap(),
-            ErrorKind::MisMatchedTags(ctag.unwrap().clone(), tag.name.clone()),
+            ErrorKind::MisMatchedTags {
+                open: ctag.unwrap().clone(),
+                close: tag.name.clone(),
+            },
         )?;
 
-        if let Some((_, _, style)) = self.state.pop() {
-            if let Some(prev) = self.state.current_style() {
-                if *prev == Style::default() && style != Style::default() {
-                    let _ = self.buf.write(b"\x1b[m");
-                } else {
-                    let _ = self.buf.write(style.close().to_string().as_bytes());
-                }
-            }
+        if tag.name == TagName::Pre {
+            self.pre_ws -= 1;
+        } else if tag.name == TagName::Ziyy {
+            self.pre_ws += 1;
         }
+
+        let current_tag = ctx.state.pop().unwrap_or_default();
+        self.buf.push_str(&current_tag.2.not().to_string());
 
         Ok(())
     }

@@ -1,0 +1,22 @@
+Ziyy's compiler. 
+
+[32mUsage:[39m [36m[1m{0}[22m [OPTIONS] <FILE> [39m
+[36m[1m{0}[22m [OPTIONS] [1m-c[22m [ARGS]... [39m
+
+[32mOptions:[39m 
+[36m-V[1;39m,[22m [39m[36m--version[39m Print version info and exit 
+[36m-c[1;39m,[22m[39m [36m--cli[39m Read input from cli, defaults to stdin if no arguments 
+[36m-e[1;39m,[22m[39m [36m--ansi[39m Parse escape sequences only 
+[36m-n[1;39m,[22m[39m [36m--no-newline[39m Suppress emiting newline after output. Available only on --cli option 
+[36m-h[1;39m,[22m[39m [36m--help[39m Print help 
+[36m--strip[39m Strip styles from output 
+[36m--tree[39m Print tree representation of output (unstable) 
+{} 
+
+[1;4mUsage:[22;24m [1mziyy[22m [3m[OPTION][23m <FILE> 
+
+[1;4mOptions:[22;24m 
+  [1m-V[22m, --version[22m 
+          Print version info and exit 
+  [1m-h[22m, --help[22m 
+          Print help 

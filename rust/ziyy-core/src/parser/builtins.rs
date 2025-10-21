@@ -1,78 +1,34 @@
+use crate::scanner::Scanner;
+use crate::Style;
 use std::{collections::HashMap, sync::LazyLock};
 
-use crate::{style::Condition, Style};
+use super::parse_chunk::match_tag_name;
+use super::{Tag, TagKind, TagName};
 
-pub static BUILTIN_TAGS: LazyLock<HashMap<String, Style>> = LazyLock::new(|| {
-    let mut map = HashMap::new();
-    let builtins = [
-        ("a", Style::default()),
-        (
-            "b",
-            Style {
-                brightness: Condition::A,
-                ..Default::default()
-            },
-        ),
-        ("br", Style::default()),
-        ("c", Style::default()),
-        (
-            "d",
-            Style {
-                brightness: Condition::B,
-                ..Default::default()
-            },
-        ),
-        (
-            "h",
-            Style {
-                hide: true,
-                ..Default::default()
-            },
-        ),
-        (
-            "k",
-            Style {
-                blink: true,
-                ..Default::default()
-            },
-        ),
-        ("let", Style::default()),
-        (
-            "r",
-            Style {
-                invert: true,
-                ..Default::default()
-            },
-        ),
-        (
-            "i",
-            Style {
-                italics: true,
-                ..Default::default()
-            },
-        ),
-        ("p", Style::default()),
-        (
-            "s",
-            Style {
-                strike: true,
-                ..Default::default()
-            },
-        ),
-        (
-            "u",
-            Style {
-                under: Condition::A,
-                ..Default::default()
-            },
-        ),
-        ("x", Style::default()),
-        ("ziyy", Style::default()),
-    ];
+pub static BUILTIN_STYLES: LazyLock<HashMap<&str, Style>> = LazyLock::new(|| {
+    [
+        ("b", Tag::new(TagName::B, TagKind::Open).style),
+        ("d", Tag::new(TagName::D, TagKind::Open).style),
+        ("h", Tag::new(TagName::H, TagKind::Open).style),
+        ("k", Tag::new(TagName::K, TagKind::Open).style),
+        ("r", Tag::new(TagName::R, TagKind::Open).style),
+        ("i", Tag::new(TagName::I, TagKind::Open).style),
+        ("s", Tag::new(TagName::S, TagKind::Open).style),
+        ("u", Tag::new(TagName::U, TagKind::Open).style),
+    ]
+    .into()
+});
 
-    for (key, value) in builtins {
-        map.insert(key.to_owned(), value);
+#[inline]
+pub fn is_builtin_tag(s: &str) -> bool {
+    let mut scanner = Scanner::new(s);
+    match scanner.scan_one() {
+        Some(token) => match match_tag_name(&token).ok() {
+            Some(name) => return !matches!(name, TagName::Any(_)),
+            None => {}
+        },
+        None => {}
     }
 
-    map
-});
+    false
+}

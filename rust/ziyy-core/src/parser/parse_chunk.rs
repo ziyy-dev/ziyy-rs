@@ -1,262 +1,353 @@
-use crate::{
-    assign_prop_bool, assign_prop_color, assign_prop_cond, assign_prop_value, char_from_u32,
-    color::{channel::Channel, number::Number, Color},
-    error::ErrorKind,
-    get_num,
-    num::str_to_u32,
-    own,
-    scanner::token::TokenKind,
-    style::{Condition, Style},
-    Error,
-};
+use crate::error::ErrorKind;
+use crate::scanner::token::{Token, TokenKind};
+use crate::scanner::Scanner;
+use crate::{char_from_u32, Error};
+use crate::{number, style::*};
+use TokenKind::*;
 
 use super::{
     expect_token,
-    tag::{Tag, TagName, TagType, Value},
-    Parser,
+    tag::{Tag, TagKind, TagName, Value},
+    Context, Parser,
 };
 
-/* const KEYWORDS: &[&str] = &[
-    "a", "b", "blink", "br", "c", "dim", "e", "h", "i", "invert", "let", "p", "u", "uu", "x",
-    "ziyy",
-]; */
-
 #[derive(Debug, PartialEq, Clone)]
-pub enum Chunk {
-    Comment(String),
+pub enum Chunk<'src> {
+    Comment(&'src str),
     Eof,
     Escape(char),
-    Tag(Tag),
-    Text(String),
-    WhiteSpace(String),
+    Tag(Tag<'src>),
+    Text(&'src str),
+    WhiteSpace(&'src str),
 }
 
-impl<T: AsRef<str>> Parser<T> {
+impl<'src> Parser {
     #[allow(clippy::too_many_lines)]
-    pub(super) fn parse_chunk(&mut self) -> Result<Chunk, Error> {
-        if let Some(chunk) = self.next_chunk.clone() {
-            self.next_chunk = None;
+    pub(super) fn parse_chunk(
+        &mut self,
+        ctx: &mut Context<'src>,
+    ) -> Result<Chunk<'src>, Error<'src>> {
+        if let Some(chunk) = ctx.next_chunk.clone() {
+            ctx.next_chunk = None;
             return Ok(chunk);
         }
 
-        let token = self.scanner.scan_token()?;
-        let r#type = match token.kind {
-            TokenKind::Less => TagType::Open,
-            TokenKind::LessSlash => TagType::Close,
+        let token = ctx.scanner.scan_token()?;
+        let kind = match token.kind {
+            TokenKind::LESS => TagKind::Open,
+            TokenKind::LESS_SLASH => TagKind::Close,
 
             _ => {
                 return match token.kind {
-                    TokenKind::Comment => Ok(Chunk::Comment(own!(token.content))),
-                    TokenKind::Text => Ok(Chunk::Text(own!(token.content))),
-                    TokenKind::PlaceHolder => Ok(Chunk::Text(
-                        Number::PlaceHolder(own!(token.content), token.custom).to_string(),
-                    )),
-                    TokenKind::WhiteSpace => Ok(Chunk::WhiteSpace(own!(token.content))),
-                    TokenKind::Eof => Ok(Chunk::Eof),
-                    TokenKind::Esc0 => char_from_u32!(&token.content[2..], 8, &token),
-                    TokenKind::EscX | TokenKind::EscU => {
+                    TokenKind::COMMENT => Ok(Chunk::Comment(token.content)),
+                    TokenKind::TEXT => Ok(Chunk::Text(token.content)),
+                    TokenKind::WHITESPACE => Ok(Chunk::WhiteSpace(token.content)),
+                    TokenKind::ESCAPED => {
+                        Ok(Chunk::Text(&token.content[3..token.content.len() - 4]))
+                    }
+                    TokenKind::EOF => Ok(Chunk::Eof),
+                    TokenKind::ESC_0 => char_from_u32!(&token.content[2..], 8, &token),
+                    TokenKind::ESC_X | TokenKind::ESC_U => {
                         char_from_u32!(&token.content[2..], 16, &token)
                     }
-                    TokenKind::EscA => Ok(Chunk::Escape(7 as char)),
-                    TokenKind::EscB => Ok(Chunk::Escape(8 as char)),
-                    TokenKind::EscT => Ok(Chunk::Escape(9 as char)),
-                    TokenKind::EscN => Ok(Chunk::Escape(10 as char)),
-                    TokenKind::EscV => Ok(Chunk::Escape(11 as char)),
-                    TokenKind::EscF => Ok(Chunk::Escape(12 as char)),
-                    TokenKind::EscR => Ok(Chunk::Escape(13 as char)),
-                    TokenKind::EscE => Ok(Chunk::Escape(27 as char)),
-                    TokenKind::EscBackSlash => Ok(Chunk::Escape('\\')),
-                    TokenKind::EscLess => Ok(Chunk::Escape('<')),
-                    TokenKind::EscGreat => Ok(Chunk::Escape('>')),
+                    TokenKind::ESC_A => Ok(Chunk::Escape(7 as char)),
+                    TokenKind::ESC_B => Ok(Chunk::Escape(8 as char)),
+                    TokenKind::ESC_T => Ok(Chunk::Escape(9 as char)),
+                    TokenKind::ESC_N => Ok(Chunk::Escape(10 as char)),
+                    TokenKind::ESC_V => Ok(Chunk::Escape(11 as char)),
+                    TokenKind::ESC_F => Ok(Chunk::Escape(12 as char)),
+                    TokenKind::ESC_R => Ok(Chunk::Escape(13 as char)),
+                    TokenKind::ESC_E => Ok(Chunk::Escape(27 as char)),
+                    TokenKind::ESC_BACK_SLASH => Ok(Chunk::Escape('\\')),
+                    TokenKind::ESC_LESS => Ok(Chunk::Escape('<')),
+                    TokenKind::ESC_GREAT => Ok(Chunk::Escape('>')),
+
+                    TokenKind::ANSI => Ok(Chunk::Tag(Tag::parse_from_ansi(
+                        &token.content[2..token.content.len() - 1],
+                        token.span,
+                    ))),
+                    TokenKind::ANSI_ESC => Ok(Chunk::Tag(Tag::parse_from_ansi(
+                        &token.content[5..token.content.len() - 1],
+                        token.span,
+                    ))),
 
                     _ => Err(Error::new(
-                        ErrorKind::UnexpectedToken(token.kind, None),
+                        ErrorKind::UnexpectedToken {
+                            expected: token.kind,
+                            found: None,
+                        },
                         &token,
                     )),
                 };
             }
         };
 
-        let token = self.scanner.scan_token()?;
-        expect_token(&token, TokenKind::Identifier)?;
+        let token = ctx.scanner.scan_token()?;
+
         let mut style = Style::new();
-        let tag_name = match_tag_name(token.content, &mut style);
+        let tag_name = match token.kind {
+            GREAT if kind == TagKind::Open => {
+                return Ok(Chunk::Tag(Tag::new(TagName::None, kind)));
+            }
 
-        let mut tag = Tag::new(tag_name.clone(), r#type);
-        tag.span.add(&token.span);
+            GREAT if kind == TagKind::Close => {
+                return Ok(Chunk::Tag(Tag::new(TagName::None, kind)));
+            }
+            _ => match_tag_name(&token)?,
+        };
 
-        let mut token = self.scanner.scan_token()?;
-        tag.span.add(&token.span);
-        while token.kind == TokenKind::Identifier {
-            match token.content {
+        let mut tag = Tag::new(tag_name.clone(), kind);
+        tag.span += token.span;
+
+        let mut token = ctx.scanner.scan_token()?;
+        tag.span += token.span;
+
+        macro_rules! assign_effect {
+            ($setter:tt, $v:expr) => {{
+                style.$setter($v);
+
+                token = ctx.scanner.scan_token()?;
+                tag.span += token.span;
+                if token.kind == TokenKind::EQUAL {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    expect_token(&token, TokenKind::STRING)?;
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                }
+            }};
+        }
+
+        macro_rules! assign_color {
+            ($setter:tt) => {{
+                token = ctx.scanner.scan_token()?;
+                tag.span += token.span;
+                if token.kind == TokenKind::EQUAL {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    expect_token(&token, TokenKind::STRING)?;
+
+                    let end = token.content.len() - 1;
+                    let color = Color::parse(&token.content[1..end], token.span)?;
+                    style.$setter(color);
+                    token = ctx.scanner.scan_token()?;
+                }
+            }};
+        }
+
+        macro_rules! assign_prop_value {
+            ( $prop:tt ) => {{
+                tag.$prop = Value::Bool;
+
+                token = ctx.scanner.scan_token()?;
+                tag.span += token.span;
+                if token.kind == TokenKind::EQUAL {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    expect_token(&token, TokenKind::STRING)?;
+                    let end = token.content.len() - 1;
+                    tag.$prop = Value::Some(&token.content[1..end]);
+                    token = ctx.scanner.scan_token()?;
+                }
+            }};
+        }
+
+        macro_rules! consume_declaration {
+            () => {{
+                token = ctx.scanner.scan_token()?;
+                tag.span += token.span;
+                if token.kind == TokenKind::EQUAL {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    expect_token(&token, TokenKind::STRING)?;
+                    token = ctx.scanner.scan_token()?;
+                }
+            }};
+        }
+        loop {
+            match token.kind {
                 // styles
-                "b" | "bold" => {
-                    assign_prop_cond!(style, brightness, Condition::A, self.scanner, token);
+                B => {
+                    assign_effect!(set_intensity, Intensity::Bold)
                 }
-                "d" | "dim" => {
-                    assign_prop_cond!(style, brightness, Condition::B, self.scanner, token);
+                D => {
+                    assign_effect!(set_intensity, Intensity::Dim)
                 }
-                "i" | "italics" => assign_prop_bool!(style, italics, self.scanner, token),
-                "u" | "underline" => {
-                    assign_prop_cond!(style, under, Condition::A, self.scanner, token);
+                I => {
+                    assign_effect!(set_font_style, FontStyle::Italics)
                 }
-                "k" | "blink" => assign_prop_bool!(style, blink, self.scanner, token),
-                "r" | "invert" | "reverse" => {
-                    assign_prop_bool!(style, invert, self.scanner, token);
+                U => {
+                    assign_effect!(set_underline, Underline::Single)
                 }
-                "h" | "hidden" | "hide" | "invisible" => {
-                    assign_prop_bool!(style, hide, self.scanner, token);
+                K => {
+                    assign_effect!(set_blink, Blink::Slow)
                 }
-                "s" | "strike-through" => assign_prop_bool!(style, strike, self.scanner, token),
-                "uu" | "double-underline" => {
-                    assign_prop_cond!(style, under, Condition::B, self.scanner, token);
+                R => {
+                    assign_effect!(set_invert, Invert::Set)
                 }
-                "double" => {
+                H => {
+                    assign_effect!(set_hide, Hide::Set)
+                }
+                S => {
+                    assign_effect!(set_delete, Delete::Set)
+                }
+                UU => {
+                    assign_effect!(set_underline, Underline::Double)
+                }
+                DOUBLE => {
                     if tag_name == TagName::U {
-                        assign_prop_cond!(style, under, Condition::B, self.scanner, token);
+                        assign_effect!(set_underline, Underline::Double)
+                    } else {
+                        consume_declaration!()
                     }
-                    // TODO: consume equals to and string if any
                 }
 
                 // colors
-                "c" | "fg" => {
-                    assign_prop_color!(tag, style, fg_color, Foreground, self.scanner, token);
+                C => {
+                    assign_color!(set_fg_color)
                 }
-                "x" | "bg" => {
-                    assign_prop_color!(tag, style, bg_color, Background, self.scanner, token);
+                X => {
+                    assign_color!(set_bg_color)
                 }
-                "black" | "blue" | "cyan" | "green" | "magenta" | "red" | "white" | "yellow" => {
+                BLACK | BLUE | CYAN | GREEN | MAGENTA | RED | WHITE | YELLOW => {
+                    let color = Color::parse(token.content, token.span)?;
                     if tag_name == TagName::C {
-                        style.fg_color = Some(Color::try_from((
-                            token.content,
-                            Channel::Foreground,
-                            token.span.clone(),
-                        ))?);
+                        style.set_fg_color(color);
                     } else if tag_name == TagName::X {
-                        style.bg_color = Some(Color::try_from((
-                            token.content,
-                            Channel::Background,
-                            token.span.clone(),
-                        ))?);
+                        style.set_bg_color(color);
                     }
 
-                    token = self.scanner.scan_token()?;
-                    tag.span.add(&token.span);
-                    if token.kind == TokenKind::Equal {
-                        token = self.scanner.scan_token()?;
-                        tag.span.add(&token.span);
-                        expect_token(&token, TokenKind::String)?;
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    if token.kind == TokenKind::EQUAL {
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
+                        expect_token(&token, TokenKind::STRING)?;
                     }
                 }
-                "byte" => {
-                    token = self.scanner.scan_token()?;
-                    tag.span.add(&token.span);
-                    if token.kind == TokenKind::Equal {
-                        token = self.scanner.scan_token()?;
-                        tag.span.add(&token.span);
-                        expect_token(&token, TokenKind::String)?;
+                FIXED => {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    if token.kind == TokenKind::EQUAL {
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
+                        expect_token(&token, TokenKind::STRING)?;
                     }
 
                     let end = token.content.len() - 1;
-                    let s = format!("byte({})", &token.content[1..end]);
+                    let s = &token.content[1..end];
+
+                    let mut scanner = Scanner::new(s);
+                    scanner.text_mode = false;
+                    scanner.parse_colors = true;
+                    scanner.current_pos = token.span.start; // FIXME: add 1 to start position
+
+                    let tok = scanner.scan_token()?;
+                    let color = Color::Ansi256(Ansi256(number!(tok.content, 10, &tok)));
+
                     if tag_name == TagName::C {
-                        style.fg_color = Some(Color::try_from((
-                            s.as_str(),
-                            Channel::Foreground,
-                            token.span.clone(),
-                        ))?);
+                        style.set_fg_color(color);
                     } else if tag_name == TagName::X {
-                        style.bg_color = Some(Color::try_from((
-                            s.as_str(),
-                            Channel::Background,
-                            token.span.clone(),
-                        ))?);
+                        style.set_bg_color(color);
                     }
-                    token = self.scanner.scan_token()?;
+                    token = ctx.scanner.scan_token()?;
                 }
-                "rgb" => {
-                    token = self.scanner.scan_token()?;
-                    tag.span.add(&token.span);
-                    if token.kind == TokenKind::Equal {
-                        token = self.scanner.scan_token()?;
-                        tag.span.add(&token.span);
-                        expect_token(&token, TokenKind::String)?;
+                RGB => {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    if token.kind == TokenKind::EQUAL {
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
+                        expect_token(&token, TokenKind::STRING)?;
                     }
 
                     let end = token.content.len() - 1;
-                    let s = format!("rgb({})", &token.content[1..end]);
+                    let s = &token.content[1..end];
+
+                    let mut scanner = Scanner::new(s);
+                    scanner.text_mode = false;
+                    scanner.parse_colors = true;
+                    scanner.current_pos = token.span.start; // TODO: add 1 to start position
+
+                    let color = Color::Rgb(Rgb::parse(&mut scanner)?);
+
                     if tag_name == TagName::C {
-                        style.fg_color = Some(Color::try_from((
-                            s.as_str(),
-                            Channel::Foreground,
-                            token.span.clone(),
-                        ))?);
+                        style.set_fg_color(color);
                     } else if tag_name == TagName::X {
-                        style.bg_color = Some(Color::try_from((
-                            s.as_str(),
-                            Channel::Background,
-                            token.span.clone(),
-                        ))?);
+                        style.set_bg_color(color);
                     }
-                    token = self.scanner.scan_token()?;
+                    token = ctx.scanner.scan_token()?;
                 }
 
                 // custom
-                "n" => {
+                N => {
                     // number of newlines to insert
                     if tag_name == TagName::Br {
-                        assign_prop_value!(tag, custom, self.scanner, token);
+                        assign_prop_value!(custom);
+                    } else {
+                        consume_declaration!()
                     }
                 }
-                "href" => {
+                HREF => {
                     // url of link
                     if tag_name == TagName::A {
-                        assign_prop_value!(tag, custom, self.scanner, token);
+                        assign_prop_value!(custom);
+                    } else {
+                        consume_declaration!()
                     }
                 }
-                "name" => {
+                ID => {
                     // name of binding to declare
                     if tag_name == TagName::Let {
-                        assign_prop_value!(tag, custom, self.scanner, token);
+                        assign_prop_value!(custom);
+                    } else {
+                        consume_declaration!()
                     }
                 }
-                "tab" => {
+                INDENT => {
                     // number of spaces to insert before a paragraph/ a tab if Value::Bool
                     if tag_name == TagName::P {
-                        assign_prop_value!(tag, custom, self.scanner, token);
+                        assign_prop_value!(custom);
+                    } else {
+                        consume_declaration!()
                     }
                 }
 
                 // inherit properties from binding with name
-                "src" => assign_prop_value!(tag, src, self.scanner, token),
+                CLASS => assign_prop_value!(class),
 
                 // ignore unknown properties
-                _ => {
-                    token = self.scanner.scan_token()?;
-                    tag.span.add(&token.span);
-                    if token.kind == TokenKind::Equal {
-                        token = self.scanner.scan_token()?;
-                        tag.span.add(&token.span);
-                        expect_token(&token, TokenKind::String)?;
+                IDENTIFIER => {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    if token.kind == TokenKind::EQUAL {
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
+                        expect_token(&token, TokenKind::STRING)?;
 
-                        token = self.scanner.scan_token()?;
-                        tag.span.add(&token.span);
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
                     }
                 }
+
+                _ => break,
             }
         }
 
         tag.style = style;
 
         match token.kind {
-            TokenKind::Great => {}
-            TokenKind::SlashGreat => {
-                tag.r#type = TagType::OpenAndClose;
+            TokenKind::GREAT => {}
+            TokenKind::SLASH_GREAT => {
+                tag.kind = TagKind::SelfClose;
             }
 
             _ => {
                 return Err(Error::new(
-                    ErrorKind::UnexpectedToken(token.kind, None),
+                    ErrorKind::UnexpectedToken {
+                        expected: token.kind,
+                        found: None,
+                    },
                     &token,
                 ));
             }
@@ -265,57 +356,51 @@ impl<T: AsRef<str>> Parser<T> {
         Ok(Chunk::Tag(tag))
     }
 
-    pub(super) fn parse_next_chunk(&mut self) -> Result<Chunk, Error> {
-        let chunk = self.parse_chunk()?;
-        self.next_chunk = Some(chunk.clone());
+    pub(super) fn parse_next_chunk(
+        &mut self,
+        ctx: &mut Context<'src>,
+    ) -> Result<Chunk<'src>, Error<'src>> {
+        let chunk = self.parse_chunk(ctx)?;
+        ctx.next_chunk = Some(chunk.clone());
         Ok(chunk)
     }
 }
 
-fn match_tag_name(text: &str, style: &mut Style) -> TagName {
-    match text {
-        // styles
-        "b" => {
-            style.brightness = Condition::A;
-            TagName::B
-        }
-        "d" => {
-            style.brightness = Condition::B;
-            TagName::D
-        }
-        "i" => {
-            style.italics = true;
-            TagName::I
-        }
-        "u" => {
-            style.under = Condition::A;
-            TagName::U
-        }
-        "k" => {
-            style.blink = true;
-            TagName::K
-        }
-        "r" => {
-            style.invert = true;
-            TagName::R
-        }
-        "h" => {
-            style.hide = true;
-            TagName::H
-        }
-        "s" => {
-            style.strike = true;
-            TagName::S
-        }
+pub(crate) fn match_tag_name<'src>(token: &Token<'src>) -> Result<TagName<'src>, Error<'src>> {
+    use TokenKind::*;
 
-        "a" => TagName::A,
-        "br" => TagName::Br,
-        "c" => TagName::C,
-        "e" => TagName::E,
-        "let" => TagName::Let,
-        "p" => TagName::P,
-        "x" => TagName::X,
-        "ziyy" => TagName::Ziyy,
-        _ => TagName::Any(String::from(text)),
-    }
+    let kind = match token.kind {
+        A => TagName::A,
+        B => TagName::B,
+        BR => TagName::Br,
+        C => TagName::C,
+        CODE => TagName::Code,
+        D => TagName::D,
+        DIV => TagName::Div,
+        H => TagName::H,
+        I => TagName::I,
+        K => TagName::K,
+        LET => TagName::Let,
+        P => TagName::P,
+        PRE => TagName::Pre,
+        R => TagName::R,
+        S => TagName::S,
+        SPAN => TagName::Span,
+        U => TagName::U,
+        X => TagName::X,
+        ZIYY => TagName::Ziyy,
+
+        IDENTIFIER | BLACK | BLUE | CYAN | GREEN | MAGENTA | RED | WHITE | YELLOW | FIXED | RGB
+        | CLASS | CURLY | DASHED | DOUBLE | DOTTED | ID | INDENT | HREF | N | NONE | SINGLE => {
+            TagName::Any(token.content)
+        }
+        _ => {
+            return Err(Error {
+                kind: ErrorKind::InvalidTagName(token.content),
+                span: token.span,
+            })
+        }
+    };
+
+    Ok(kind)
 }

@@ -1,25 +1,32 @@
 use core::fmt::Debug;
+use std::fmt::Display;
 
-#[derive(Clone, Default)]
-pub struct Position(pub u16, pub u16);
+#[derive(Clone, Copy, Default)]
+pub struct Position {
+    pub row: u16,
+    pub col: u16,
+}
 
 impl Position {
-    #[must_use]
-    pub fn new(line: u16, column: u16) -> Self {
-        Self(line, column)
+    pub fn new(row: u16, col: u16) -> Self {
+        Self { row, col }
     }
 }
 
 impl PartialEq for Position {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0 && self.1 == other.1
+        self.row == other.row && self.col == other.col
     }
 }
 
 impl Debug for Position {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_fmt(format_args!("({},{})", self.0 + 1, self.1 + 1))?;
+        f.write_fmt(format_args!("({},{})", self.row + 1, self.col + 1))
+    }
+}
 
-        Ok(())
+impl Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}:{}", self.row + 1, self.col + 1))
     }
 }

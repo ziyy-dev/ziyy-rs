@@ -14,10 +14,6 @@ resolver = "2"
 features = ["tag", "source"]
 rustdoc-args = ["--cfg", "docsrs"]
 
-[[bin]]
-name = "debug"
-doc = false
-
 [workspace]
 members = ["ziyy-core", "ziyy-proc"]
 

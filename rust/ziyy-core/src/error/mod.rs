@@ -1,54 +1,56 @@
 use std::{error, fmt};
 
-use crate::{
-    scanner::{
-        span::Span,
-        token::{Token, TokenKind},
-    },
-    TagName,
-};
+use crate::scanner::span::Span;
+use crate::scanner::token::{Token, TokenKind};
+use crate::TagName;
 
-/// Parse Error.
+/// Represents an error with additional context such as its type, message, and location.
 #[derive(Debug)]
-pub struct Error {
-    pub(crate) kind: ErrorKind,
+pub struct Error<'src> {
+    /// The type of the error.
+    pub(crate) kind: ErrorKind<'src>,
+    /// The span in the source where the error occurred.
     pub(crate) span: Span,
 }
 
-impl error::Error for Error {}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            ErrorKind::UnexpectedToken(found, expected) => {
-                if let Some(expected) = expected {
-                    f.write_fmt(format_args!(
-                        "Unexpected Token: {found:?}, expected {expected:?} at {}",
-                        self.span
-                    ))?;
-                } else {
-                    f.write_fmt(format_args!("Unexpected Token: {found:?} at {}", self.span))?;
-                }
-            }
-            ErrorKind::MisMatchedTags(open, close) => f.write_fmt(format_args!(
-                "Mismatched closing tag </{close:?}> for <{open:?}> at {}",
-                self.span
-            ))?,
-            ErrorKind::InvalidNumber => {
-                f.write_fmt(format_args!("Invalid Number at {}", self.span))?;
-            }
-            ErrorKind::UnexpectedEof => {
-                f.write_fmt(format_args!("Unexpected Eof at {}", self.span))?;
-            }
-            ErrorKind::UnknownToken(s) => {
-                f.write_fmt(format_args!("Unknown Token: {s} at {}", self.span))?;
-            }
-        }
-        Ok(())
+impl<'src> Error<'src> {
+    pub fn kind(&self) -> &ErrorKind<'src> {
+        &self.kind
     }
 }
 
-impl Error {
+impl<'src> error::Error for Error<'src> {}
+
+impl<'src> fmt::Display for Error<'src> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("error: ")?;
+        match &self.kind {
+            ErrorKind::UnexpectedToken { expected, found } => match found {
+                Some(found) => f.write_fmt(format_args!(
+                    "unexpected token, expected {expected:?}, found `{found}`"
+                )),
+                None => f.write_fmt(format_args!("unexpected token, expected {expected:?}")),
+            },
+            ErrorKind::UnknownToken(tok) => f.write_fmt(format_args!("Unknown token: {tok}")),
+            ErrorKind::MisMatchedTags { open, close } => {
+                f.write_fmt(format_args!("mismatched tags: <{open}>...</{close}>"))
+            }
+            ErrorKind::InvalidNumber(number) => {
+                f.write_fmt(format_args!("invalid number: `{number}`"))
+            }
+            ErrorKind::InvalidColor(color) => f.write_fmt(format_args!("invalid color: '{color}'")),
+            ErrorKind::InvalidTagName(name) => {
+                f.write_fmt(format_args!("invalid tag name: `{name}`"))
+            }
+            ErrorKind::UnexpectedEof => f.write_str("Unexpected Eof"),
+            ErrorKind::UnterminatedString => f.write_str("unterminated string"),
+        }?;
+
+        f.write_fmt(format_args!(" at {}", self.span))
+    }
+}
+
+impl<'src> Error<'src> {
     /// Creates a new `Error` instance.
     ///
     /// # Arguments
@@ -59,7 +61,7 @@ impl Error {
     /// # Returns
     ///
     /// A new `Error` instance.
-    pub(crate) fn new(kind: ErrorKind, token: &Token) -> Self {
+    pub(crate) fn new(kind: ErrorKind<'src>, token: &Token) -> Self {
         Self {
             kind,
             span: token.span.clone(),
@@ -70,15 +72,26 @@ impl Error {
 #[non_exhaustive]
 #[derive(Debug, PartialEq)]
 /// Represents the different kinds of parse errors.
-pub enum ErrorKind {
-    /// An unexpected token was encountered.
-    UnexpectedToken(TokenKind, Option<TokenKind>),
-    /// An unknown token was encountered.
-    UnknownToken(String),
+pub enum ErrorKind<'src> {
+    /// Indicates an invalid color was encountered.
+    InvalidColor(&'src str),
+    /// Indicates an invalid number was encountered.
+    InvalidNumber(&'src str),
+    InvalidTagName(&'src str),
     /// Mismatched opening and closing tags.
-    MisMatchedTags(TagName, TagName),
-    /// An invalid number was encountered.
-    InvalidNumber,
-    /// An unexpected end of file was encountered.
+    MisMatchedTags {
+        open: TagName<'src>,
+        close: TagName<'src>,
+    },
+    /// Indicates the end of input was reached unexpectedly.
     UnexpectedEof,
+    /// Indicates an unexpected token was encountered.
+    UnexpectedToken {
+        expected: TokenKind,
+        found: Option<&'src str>,
+    },
+    /// An unknown token was encountered.
+    UnknownToken(&'src str),
+    /// Indicates an unterminated string literal.
+    UnterminatedString,
 }

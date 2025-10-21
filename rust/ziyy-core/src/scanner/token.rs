@@ -1,68 +1,101 @@
 use super::span::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(non_camel_case_types)]
 pub enum TokenKind {
     // Single-character tokens.
-    LeftParen,
-    RightParen,
-    Equal,
-    Comma,
-    Less,
-    LessSlash,
-    Great,
-    SlashGreat,
+    LEFT_PAREN,
+    RIGHT_PAREN,
+    EQUAL,
+    COMMA,
+    LESS,
+    LESS_SLASH,
+    GREAT,
+    SLASH_GREAT,
     //Plus,
-    Dot,
-    Slash,
-
-    PlaceHolder,
+    DOT,
+    SLASH,
 
     // C-Escapes
-    EscA,
-    EscB,
-    EscT,
-    EscN,
-    EscV,
-    EscF,
-    EscR,
-    EscE,
-    EscBackSlash,
-    EscLess,
-    EscGreat,
+    ESC_A,
+    ESC_B,
+    ESC_T,
+    ESC_N,
+    ESC_V,
+    ESC_F,
+    ESC_R,
+    ESC_E,
+    ESC_BACK_SLASH,
+    ESC_LESS,
+    ESC_GREAT,
 
-    Esc0, // Octal Escape \0XXX
-    EscX, // Hex Escape \xHHH
-    EscU, // Unicode Escape \uHHHH
+    ESC_0, // Octal Escape \0XXX
+    ESC_X, // Hex Escape \xHHH
+    ESC_U, // Unicode Escape \uHHHH
 
     // Literals.
-    Identifier,
-    String,
-    Number,
-    WhiteSpace,
-    Text,
+    ANSI,
+    ANSI_ESC,
+    ESCAPED,
+    IDENTIFIER,
+    STRING,
+    NUMBER,
+    WHITESPACE,
+    TEXT,
+    HEX, /* #HHHHHH | #HHH */
 
-    // Builtin Variables.
-    Black,
-    Red,
-    Green,
-    Yellow,
-    Blue,
-    Magenta,
-    Cyan,
-    White,
-    Rgb,
-    Hex, /* #HHHHHH | #HHH */
-    Byte,
+    // Colors.
+    BLACK,
+    RED,
+    GREEN,
+    YELLOW,
+    BLUE,
+    MAGENTA,
+    CYAN,
+    WHITE,
+    FIXED,
+    RGB,
+
+    // Tag Names
+    A,
     B,
+    BR,
     C,
+    CODE,
+    D,
+    DIV,
+    H,
     I,
+    K,
+    LET,
+    O,
+    P,
+    PRE,
+    R,
     S,
-    T,
+    SPAN,
     U,
+    UU,
     X,
-    Eof,
-    Error,
-    Comment,
+    ZIYY,
+
+    // Others
+    CLASS,
+    CURLY,
+    BLOCK,
+    DASHED,
+    DOUBLE,
+    DOTTED,
+    ID,
+    INDENT,
+    HREF,
+    N,
+    NONE,
+    SINGLE,
+
+    // Special
+    COMMENT,
+    EOF,
 }
 
 impl TokenKind {
@@ -73,15 +106,15 @@ impl TokenKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct Token<'a> {
+pub struct Token<'src> {
     pub kind: TokenKind,
-    pub content: &'a str,
+    pub content: &'src str,
     pub custom: u16,
     pub span: Span,
 }
 
-impl<'a> Token<'a> {
-    pub fn new(kind: TokenKind, content: &'a str, span: Span) -> Self {
+impl<'src> Token<'src> {
+    pub fn new(kind: TokenKind, content: &'src str, span: Span) -> Self {
         Token {
             kind,
             content,
