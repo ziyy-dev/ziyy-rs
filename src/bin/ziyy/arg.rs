@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::env::Args;
+use std::{env::Args, fmt::Display};
 
 #[derive(Debug)]
 pub enum Arg {
@@ -10,17 +10,49 @@ pub enum Arg {
     Param(String),
 }
 
+impl Arg {
+    pub fn is_long_switch_and(&self, f: fn(&String) -> bool) -> bool {
+        match self {
+            Arg::LongSwitch(s) => f(s),
+            _ => false,
+        }
+    }
+
+    pub fn is_short_switch_and(&self, f: fn(&String) -> bool) -> bool {
+        match self {
+            Arg::ShortSwitch(s) => f(s),
+            _ => false,
+        }
+    }
+
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_params_and(self, mut f: impl FnMut(String)) {
+        if let Arg::Param(s) = self {
+            f(s)
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
     Long(String),
     Short(String),
 }
 
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Long(v) => f.write_fmt(format_args!("--{v}")),
+            Error::Short(v) => f.write_fmt(format_args!("-{v}")),
+        }
+    }
+}
+
 pub struct Cli<'a> {
-    pub short_flags: Vec<&'a str>,
-    pub long_flags: Vec<&'a str>,
-    pub short_switches: Vec<&'a str>,
-    pub long_switches: Vec<&'a str>,
+    pub short_flags: &'a [&'a str],
+    pub long_flags: &'a [&'a str],
+    pub short_switches: &'a [&'a str],
+    pub long_switches: &'a [&'a str],
 }
 
 fn split_args(args0: Args) -> Vec<String> {
@@ -28,7 +60,7 @@ fn split_args(args0: Args) -> Vec<String> {
 
     for arg in args0 {
         if let Some(ch) = arg.strip_prefix('-') {
-            if ch.chars().nth(0) == Some('-') {
+            if ch.starts_with('-') {
                 args.push(arg.clone());
                 continue;
             }

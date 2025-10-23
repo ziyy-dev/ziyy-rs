@@ -1,13 +1,141 @@
-use arg::{parse_args, Arg::*, Cli};
+use arg::{parse_args, Cli};
 use std::env;
 use std::fs::File;
-use std::io::{stdout, BufReader, Read, Write};
+use std::io::{stdin, stdout, BufReader, Read, Write};
 use std::path::Path;
 use std::process::exit;
-use ziyy::{zprint, Parser};
-use ziyy_core::Context;
+use ziyy::{zprint, Error, Parser};
+use ziyy_core::{document, Context};
 
 mod arg;
+
+fn main() {
+    let mut args0 = env::args();
+    let mut out: Vec<u8> = vec![];
+    let mut stdout = stdout().lock();
+    if args0.len() - 1 < 1 {
+        usage();
+        exit(0);
+    }
+
+    args0.next();
+    let args = parse_args(
+        args0,
+        Cli {
+            short_flags: &[],
+            long_flags: &["mode"],
+            short_switches: &["h", "V", "c", "e", "n"],
+            long_switches: &[
+                "ansi",
+                "cli",
+                "help",
+                "no-newline",
+                "strip",
+                "version",
+                "tree",
+            ],
+        },
+    )
+    .unwrap();
+    let mut options = Options::default();
+    let mut params = vec![];
+    //println!("{args:?}");
+    for arg in args {
+        if arg.is_long_switch_and(|s| s == "help") | arg.is_short_switch_and(|s| s == "h") {
+            usage();
+            exit(0);
+        } else if arg.is_long_switch_and(|s| s == "version") | arg.is_short_switch_and(|s| s == "V")
+        {
+            println!(env!("CARGO_PKG_VERSION"));
+            exit(0);
+        } else if arg.is_short_switch_and(|s| s == "c") | arg.is_long_switch_and(|s| s == "cli") {
+            options.cli = true;
+        } else if arg.is_short_switch_and(|s| s == "e") | arg.is_long_switch_and(|s| s == "ansi") {
+            options.escape_only = true;
+        } else if arg.is_short_switch_and(|s| s == "n")
+            | arg.is_long_switch_and(|s| s == "no-newline")
+        {
+            options.no_newline = true;
+        } else if arg.is_long_switch_and(|s| s == "strip") {
+            options.strip = true;
+        } else if arg.is_long_switch_and(|s| s == "tree") {
+            options.tree = true;
+        } else {
+            arg.is_params_and(|s| params.push(s))
+        }
+    }
+
+    if options.cli {
+        if params.is_empty() {
+            let mut buf = String::new();
+            let _ = stdin().read_to_string(&mut buf);
+            parse_to_out(&buf, &mut out, options);
+        } else {
+            parse_to_out(&params.join(" "), &mut out, options);
+        }
+        if !options.no_newline {
+            let _ = writeln!(out);
+        }
+    } else {
+        if params.is_empty() {
+            usage();
+            exit(1);
+        }
+        for param in &params {
+            if !Path::new(&param).is_file() {
+                usage();
+                exit(1);
+            }
+            let f = File::open(param).unwrap();
+            let mut reader = BufReader::new(f);
+            let mut file = String::new();
+            let _ = reader.read_to_string(&mut file);
+            if file.starts_with("#!") {
+                let mut lines = file.split_inclusive('\n');
+                lines.next();
+                file = lines.collect::<Vec<_>>().join("\n");
+            }
+            parse_to_out(&file, &mut out, options)
+        }
+    }
+
+    let _ = stdout.write(&out);
+}
+
+fn parse_to_out(source: &str, out: &mut impl Write, options: Options) {
+    let mut f = || {
+        if options.tree {
+            let _ = out.write(document(source).to_string().as_bytes());
+        } else {
+            match options.escape_only {
+                true => todo!(),
+                false => parse(&source, out),
+            }?;
+        }
+
+        /* if options.strip {
+            output.root().strip_styles();
+        } */
+
+        /* let mut buf = String::new();
+        if options.tree {
+            buf = output.to_string();
+        } else {
+            output.root().to_string(&mut buf);
+        } */
+
+        // let _ = out.write(buf.as_bytes());
+        Ok::<(), Error>(())
+    };
+    if let Err(err) = f() {
+        println!(
+            "{}",
+            err.to_string()
+                .replace("at :", &format!("\x1b[1;34mat\x1b[22;39m :"))
+        );
+        exit(1)
+    }
+}
 
 pub fn parse<'src>(source: &'src str, out: &mut impl Write) -> ziyy::Result<'src, ()> {
     let mut parser = Parser::new();
@@ -43,108 +171,11 @@ fn usage() {
     );
 }
 
-fn main() {
-    let mut args0 = env::args();
-    let mut out: Vec<u8> = vec![];
-    let mut stdout = stdout().lock();
-    if args0.len() - 1 < 1 {
-        usage();
-        exit(0);
-    }
-
-    args0.next();
-    let args = parse_args(
-        args0,
-        Cli {
-            short_flags: vec![],
-            long_flags: vec!["mode"],
-            short_switches: vec!["h", "V", "c", "e", "n"],
-            long_switches: vec!["help", "version"],
-        },
-    )
-    .unwrap();
-    let mut opt = Opt::default();
-    let mut params = vec![];
-    //println!("{args:?}");
-    for arg in args {
-        match arg {
-            LongSwitch(switch) if switch == "help" => {
-                usage();
-                exit(0);
-            }
-            ShortSwitch(switch) if switch == "h" => {
-                usage();
-                exit(0);
-            }
-
-            LongSwitch(switch) if switch == "version" => {
-                println!("2.0.0"); // TODO: use
-                exit(0);
-            }
-            ShortSwitch(switch) if switch == "V" => {
-                println!("2.0.0"); // TODO: use
-                exit(0);
-            }
-
-            ShortSwitch(switch) if switch == "c" => {
-                opt.cli = true;
-            }
-
-            ShortSwitch(switch) if switch == "n" => {
-                opt.no_newline = true;
-            }
-
-            Param(param) => {
-                params.push(param);
-            }
-            _ => {}
-        }
-    }
-
-    if opt.cli {
-        if let Err(err) = parse(&params.join(" "), &mut out) {
-            println!("{err}");
-            exit(1)
-        }
-        if !opt.no_newline {
-            let _ = writeln!(out);
-        }
-    } else {
-        for param in &params {
-            if !Path::new(&param).is_file() {
-                usage();
-                exit(1);
-            }
-            let f = File::open(&param).unwrap();
-            let mut reader = BufReader::new(f);
-            let mut file = String::new();
-            let _ = reader.read_to_string(&mut file);
-            if file.starts_with("#!") {
-                let mut lines = file.split_inclusive('\n');
-                lines.next();
-                file = lines.collect::<Vec<_>>().join("\n");
-            }
-            if let Err(err) = parse(&file, &mut out) {
-                println!(
-                    "{}",
-                    err.to_string()
-                        .replace("at :", &format!("\x1b[1;34mat\x1b[22;39m {param}:"))
-                );
-                exit(1)
-            }
-        }
-    }
-
-    if params.is_empty() {
-        usage();
-        exit(1);
-    }
-
-    let _ = stdout.write(&out);
-}
-
-#[derive(Default)]
-struct Opt {
-    no_newline: bool,
+#[derive(Default, Clone, Copy)]
+struct Options {
     cli: bool,
+    escape_only: bool,
+    no_newline: bool,
+    strip: bool,
+    tree: bool,
 }

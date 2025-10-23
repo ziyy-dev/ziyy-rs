@@ -1,66 +1,73 @@
 #![warn(rustdoc::private_intra_doc_links)]
 #![warn(unconditional_panic)]
 #![warn(clippy::pedantic)]
-#![doc = include_str!("../../../README.md")]
-//! # Examples
-//! ```
-//! use std::collections::HashMap;
-//!
-//! use ziyy::Parser;
-//!
-//! let mut parser = Parser::new("This is Some <c magenta u b>Magenta Underlined Bold Text</c>", None);
-//! assert!(parser.parse().is_ok());
-//!```
-//! # Result
-//! <pre>This is Some <span style="color: magenta;"><b><u>Magenta Underlined Bold Text</u></b></span></pre>
-//!
-
+#![doc = include_str!("../../README.md")]
+#[doc(hidden)]
+pub use crate::document::{Document, NodeId, NodeMut, NodeRef};
 pub use crate::error::{Error, ErrorKind};
-pub use crate::parser::{Context, Parser, Tag, TagKind, TagName};
+pub use crate::parser::{Chunk, Context, Parser, Tag, TagKind, TagName};
 pub use crate::scanner::position::Position;
 pub use crate::scanner::span::Span;
 pub use crate::style::*;
-pub use crate::ziyy as style;
-
 use num::{str_to_u32, str_to_u8};
 
+mod document;
 mod error;
 mod num;
 mod parser;
 mod scanner;
 mod style;
 
-/// Styles the given text using the ziyy parser.
-///
-/// This function takes a string slice and returns a styled string. It uses the `Parser`
-/// to parse the input text and apply the specified styles. If the parsing is successful,
-/// it returns the styled string; otherwise, it panics with the error message.
-///
-/// # Arguments
-///
-/// * `text` - A string slice that holds the text to be styled.
+/// Styles the given text using ziyy.
 ///
 /// # Example
 ///
 /// ```
-/// use ziyy::ziyy;
+/// # use ziyy_core as ziyy;
+/// use ziyy::style;
 ///
-/// let styled_text = ziyy("This is <b>bold</b> text");
-/// assert_eq!(styled_text, "This is <b>bold</b> text");
+/// let styled_text = style("This is <b>bold</b> text");
 /// ```
-///
 /// # Panics
 ///
-/// This function will panic if the parser encounters an error while parsing the input text.
-///
-/// # Returns
-///
-/// A `String` containing the styled text.
+/// This function will panic if the parser encounters an error while parsing the input source.
 #[must_use]
-pub fn ziyy(text: &str) -> String {
+pub fn style(text: &str) -> String {
     let mut parser = Parser::new();
 
     match parser.parse(Context::new(text, None)) {
+        Ok(s) => s,
+        Err(e) => panic!("{e}"),
+    }
+}
+
+/// Styles the given text using ziyy.
+///
+/// # Example
+///
+/// ```
+/// # fn main() -> ziyy_core::Result<'static, ()> {
+/// # use ziyy_core as ziyy;
+/// use ziyy::try_style;
+///
+/// let styled_text = try_style(r#"
+/// <let id="custom" c="blue">
+///     This is a custom element.
+/// </let>
+/// <span class='s custom'>This text is in blue</span>"#)?;
+/// # Ok(())
+/// # }
+pub fn try_style(text: &str) -> Result<'_, String> {
+    let mut parser = Parser::new();
+    parser.parse(Context::new(text, None))
+}
+
+#[doc(hidden)]
+#[must_use]
+pub fn document(text: &str) -> Document<'_> {
+    let mut parser = Parser::new();
+
+    match parser.parse_to_doc(Context::new(text, None)) {
         Ok(s) => s,
         Err(e) => panic!("{e}"),
     }

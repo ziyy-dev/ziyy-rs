@@ -24,9 +24,9 @@ macro_rules! char_from_u32 {
         let num = $crate::get_num!($crate::str_to_u32($text, $radix), $token);
         let unicode = char::from_u32(num);
         if let Some(ch) = unicode {
-            Ok(Chunk::Escape(ch))
+            Ok(Chunk::Escape(ch, $token.span))
         } else {
-            Ok(Chunk::Escape(char::REPLACEMENT_CHARACTER))
+            Ok(Chunk::Escape(char::REPLACEMENT_CHARACTER, $token.span))
         }
     }};
 }

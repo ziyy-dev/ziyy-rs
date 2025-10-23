@@ -1,4 +1,4 @@
-pub use ziyy_core::{style, ziyy, Context, Error, ErrorKind, Parser, Result};
+pub use ziyy_core::{style, Context, Error, ErrorKind, Parser, Result};
 pub use ziyy_proc::ziyy;
 
 #[macro_export]

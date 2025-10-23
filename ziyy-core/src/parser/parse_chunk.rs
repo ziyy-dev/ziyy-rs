@@ -1,8 +1,10 @@
+use std::fmt::{Debug, Display};
+
 use crate::error::ErrorKind;
 use crate::parser::builtins::is_builtin_tag;
 use crate::scanner::token::{Token, TokenKind};
 use crate::scanner::Scanner;
-use crate::{char_from_u32, Error};
+use crate::{char_from_u32, Error, Span};
 use crate::{
     number,
     style::{
@@ -22,12 +24,40 @@ use super::{
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Chunk<'src> {
-    Comment(&'src str),
-    Eof,
-    Escape(char),
+    Comment(&'src str, Span),
+    Eof(Span),
+    Escape(char, Span),
     Tag(Tag<'src>),
-    Text(&'src str),
-    WhiteSpace(&'src str),
+    Text(&'src str, Span),
+    WhiteSpace(&'src str, Span),
+}
+
+impl Chunk<'_> {
+    pub fn span(&self) -> Span {
+        match self {
+            Chunk::Comment(_, span) => *span,
+            Chunk::Eof(span) => *span,
+            Chunk::Escape(_, span) => *span,
+            Chunk::Tag(tag) => tag.span,
+            Chunk::Text(_, span) => *span,
+            Chunk::WhiteSpace(_, span) => *span,
+        }
+    }
+}
+
+impl Display for Chunk<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Chunk::Comment(s, _) => Debug::fmt(s, f),
+            Chunk::Eof(span) => Debug::fmt(span, f),
+            Chunk::Escape(s, _) => Debug::fmt(s, f),
+            Chunk::Tag(tag) => Display::fmt(tag, f),
+            Chunk::Text(s, _) => Debug::fmt(s, f),
+            Chunk::WhiteSpace(s, _) => Debug::fmt(s, f),
+        }?;
+
+        f.write_fmt(format_args!(" \x1b[38;5;59m--> {}\x1b[39m", self.span()))
+    }
 }
 
 impl<'src> Parser {
@@ -45,28 +75,29 @@ impl<'src> Parser {
 
             _ => {
                 return match token.kind {
-                    TokenKind::COMMENT => Ok(Chunk::Comment(token.content)),
-                    TokenKind::TEXT => Ok(Chunk::Text(token.content)),
-                    TokenKind::WHITESPACE => Ok(Chunk::WhiteSpace(token.content)),
-                    TokenKind::ESCAPED => {
-                        Ok(Chunk::Text(&token.content[3..token.content.len() - 4]))
-                    }
-                    TokenKind::EOF => Ok(Chunk::Eof),
+                    TokenKind::COMMENT => Ok(Chunk::Comment(token.content, token.span)),
+                    TokenKind::TEXT => Ok(Chunk::Text(token.content, token.span)),
+                    TokenKind::WHITESPACE => Ok(Chunk::WhiteSpace(token.content, token.span)),
+                    TokenKind::ESCAPED => Ok(Chunk::Text(
+                        &token.content[3..token.content.len() - 4],
+                        token.span,
+                    )),
+                    TokenKind::EOF => Ok(Chunk::Eof(token.span)),
                     TokenKind::ESC_0 => char_from_u32!(&token.content[2..], 8, &token),
                     TokenKind::ESC_X | TokenKind::ESC_U => {
                         char_from_u32!(&token.content[2..], 16, &token)
                     }
-                    TokenKind::ESC_A => Ok(Chunk::Escape(7 as char)),
-                    TokenKind::ESC_B => Ok(Chunk::Escape(8 as char)),
-                    TokenKind::ESC_T => Ok(Chunk::Escape(9 as char)),
-                    TokenKind::ESC_N => Ok(Chunk::Escape(10 as char)),
-                    TokenKind::ESC_V => Ok(Chunk::Escape(11 as char)),
-                    TokenKind::ESC_F => Ok(Chunk::Escape(12 as char)),
-                    TokenKind::ESC_R => Ok(Chunk::Escape(13 as char)),
-                    TokenKind::ESC_E => Ok(Chunk::Escape(27 as char)),
-                    TokenKind::ESC_BACK_SLASH => Ok(Chunk::Escape('\\')),
-                    TokenKind::ESC_LESS => Ok(Chunk::Escape('<')),
-                    TokenKind::ESC_GREAT => Ok(Chunk::Escape('>')),
+                    TokenKind::ESC_A => Ok(Chunk::Escape(7 as char, token.span)),
+                    TokenKind::ESC_B => Ok(Chunk::Escape(8 as char, token.span)),
+                    TokenKind::ESC_T => Ok(Chunk::Escape(9 as char, token.span)),
+                    TokenKind::ESC_N => Ok(Chunk::Escape(10 as char, token.span)),
+                    TokenKind::ESC_V => Ok(Chunk::Escape(11 as char, token.span)),
+                    TokenKind::ESC_F => Ok(Chunk::Escape(12 as char, token.span)),
+                    TokenKind::ESC_R => Ok(Chunk::Escape(13 as char, token.span)),
+                    TokenKind::ESC_E => Ok(Chunk::Escape(27 as char, token.span)),
+                    TokenKind::ESC_BACK_SLASH => Ok(Chunk::Escape('\\', token.span)),
+                    TokenKind::ESC_LESS => Ok(Chunk::Escape('<', token.span)),
+                    TokenKind::ESC_GREAT => Ok(Chunk::Escape('>', token.span)),
 
                     TokenKind::ANSI => Ok(Chunk::Tag(Tag::parse_from_ansi(
                         &token.content[2..token.content.len() - 1],

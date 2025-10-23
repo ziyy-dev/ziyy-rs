@@ -323,6 +323,24 @@ impl<'src> Tag<'src> {
     }
 }
 
+impl Display for Tag<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            TagKind::Open | TagKind::SelfClose => f.write_str("<"),
+            TagKind::Close => f.write_str("</"),
+        }?;
+
+        self.name.fmt(f)?;
+
+        match self.kind {
+            TagKind::Open | TagKind::Close => f.write_str(">"),
+            TagKind::SelfClose => f.write_str("/>"),
+        }?;
+
+        Ok(())
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum TagKind {
     Open,

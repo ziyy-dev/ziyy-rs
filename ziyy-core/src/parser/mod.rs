@@ -1,3 +1,4 @@
+use crate::document::Document;
 use crate::error::ErrorKind;
 use crate::scanner::is_whitespace;
 use crate::scanner::token::Token;
@@ -6,7 +7,7 @@ use crate::scanner::Scanner;
 use crate::style::Style;
 use crate::Error;
 use builtins::BUILTIN_STYLES;
-use parse_chunk::Chunk;
+pub use parse_chunk::Chunk;
 use state::State;
 use std::collections::HashMap;
 use std::mem::take;
@@ -91,8 +92,8 @@ impl<'src> Parser {
         loop {
             let parsed = Parser::parse_chunk(&mut ctx)?;
             match parsed {
-                Chunk::Comment(_) => {}
-                Chunk::Escape(ch) => {
+                Chunk::Comment(_, _) => {}
+                Chunk::Escape(ch, _) => {
                     self.buf.push(ch);
                     self.skip_ws = is_whitespace(ch);
                     self.block_start = self.skip_ws;
@@ -104,17 +105,17 @@ impl<'src> Parser {
                     TagKind::SelfClose => self.parse_open_and_close_tag(&mut ctx, &tag)?,
                 },
 
-                Chunk::Text(text) => {
+                Chunk::Text(text, _) => {
                     self.buf.push_str(text);
                     self.skip_ws = false;
                     self.block_start = false;
                 }
 
-                Chunk::WhiteSpace(ws) => {
+                Chunk::WhiteSpace(ws, _) => {
                     let chunk = Parser::parse_next_chunk(&mut ctx)?;
                     if self.pre_ws > 0 {
                         self.buf.push_str(ws);
-                    } else if let Chunk::Eof = chunk {
+                    } else if let Chunk::Eof(_) = chunk {
                         if ws.contains('\n') {
                             self.buf.push('\n');
                         }
@@ -124,7 +125,7 @@ impl<'src> Parser {
                     }
                 }
 
-                Chunk::Eof => {
+                Chunk::Eof(_) => {
                     return Ok(take(&mut self.buf));
                 }
             }
@@ -140,6 +141,40 @@ impl<'src> Parser {
         match self.parse(ctx) {
             Ok(res) => Ok(res.into_bytes()),
             Err(err) => Err(err),
+        }
+    }
+
+    pub fn parse_to_doc(&mut self, mut ctx: Context<'src>) -> Result<Document<'src>, Error<'src>> {
+        let mut doc = Document::new();
+        let mut id = doc.root().id();
+
+        loop {
+            let parsed = Parser::parse_chunk(&mut ctx)?;
+            match &parsed {
+                chunk @ Chunk::Tag(tag) => match tag.kind {
+                    TagKind::Open => {
+                        let mut node = doc.get_mut(id).unwrap();
+                        let child = node.append(chunk.clone());
+                        id = child.id();
+                    }
+                    TagKind::Close => {
+                        let mut node = doc.get_mut(id).unwrap();
+                        node.append(chunk.clone());
+                        id = node.parent().unwrap().id();
+                    }
+                    TagKind::SelfClose => {
+                        let mut node = doc.get_mut(id).unwrap();
+                        node.append(chunk.clone());
+                    }
+                },
+
+                Chunk::Eof(_) => return Ok(doc),
+
+                chunk => {
+                    let mut node = doc.get_mut(id).unwrap();
+                    node.append(chunk.clone());
+                }
+            }
         }
     }
 
@@ -292,45 +327,4 @@ mod tests {
         let result = expect_token(&token, TokenKind::B);
         assert!(result.is_err());
     }
-
-    /* #[test]
-    fn test_inherit_style() {
-        let src = Style {
-            italics: true,
-            blink: true,
-            invert: true,
-            hide: true,
-            strike: true,
-            fg_color: Some(Color::fg(ColorKind::Bit4(Bit4::Red))),
-            bg_color: Some(Color::bg(ColorKind::Bit4(Bit4::Black))),
-            ..Default::default()
-        };
-        let mut dst = Style::default();
-        inherit(&src, &mut dst);
-        assert!(dst.italics);
-        assert!(dst.blink);
-        assert!(dst.invert);
-        assert!(dst.hide);
-        assert!(dst.strike);
-        assert_eq!(dst.fg_color, Some(Color::fg(ColorKind::Bit4(Bit4::Red))));
-        assert_eq!(dst.bg_color, Some(Color::bg(ColorKind::Bit4(Bit4::Black))));
-    } */
-
-    /* #[test]
-    fn test_parse_to_bytes() {
-        let source = "test source";
-        let bindings = None;
-        let mut parser = Parser::new(source, bindings);
-        let result = parser.parse_to_bytes();
-        assert!(result.is_ok());
-    } */
-
-    /* #[test]
-    fn test_parse() {
-        let source = "test source";
-        let bindings = None;
-        let mut parser = Parser::new(source, bindings);
-        let result = parser.parse();
-        assert!(result.is_ok());
-    } */
 }

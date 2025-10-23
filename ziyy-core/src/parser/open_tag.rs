@@ -25,22 +25,22 @@ impl<'src> Parser {
                 loop {
                     let chunk = Parser::parse_chunk(ctx)?;
                     match chunk {
-                        Chunk::Comment(_) | Chunk::Escape(_) => {}
+                        Chunk::Comment(_, _) | Chunk::Escape(_, _) => {}
                         Chunk::Tag(tag2) => {
                             if tag2.name == TagName::A && tag2.kind == TagKind::Close {
                                 break;
                             }
                         }
 
-                        Chunk::Text(text) => {
+                        Chunk::Text(text, _) => {
                             self.buf.push_str(text);
                         }
 
-                        Chunk::WhiteSpace(ws) => {
+                        Chunk::WhiteSpace(ws, _) => {
                             self.buf.push_str(ws);
                         }
 
-                        Chunk::Eof => {
+                        Chunk::Eof(_) => {
                             return Err(Error {
                                 kind: ErrorKind::UnexpectedEof,
                                 span: tag.span,
@@ -117,7 +117,7 @@ impl<'src> Parser {
                         }
                     }
 
-                    Chunk::Eof => {
+                    Chunk::Eof(_) => {
                         return Err(Error {
                             kind: ErrorKind::UnexpectedEof,
                             span: tag.span,

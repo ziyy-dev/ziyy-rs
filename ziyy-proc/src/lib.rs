@@ -13,7 +13,7 @@ pub fn ziyy(item: TokenStream) -> TokenStream {
             let strings: Vec<_> = s.split('"').collect();
             let end = strings.len() - 1;
             let s = strings[1..end].join("\"");
-            let parsed = ziyy_core::ziyy(&s);
+            let parsed = ziyy_core::style(&s);
 
             let literal = Literal::string(&parsed);
             *token = TokenTree::Literal(literal)
