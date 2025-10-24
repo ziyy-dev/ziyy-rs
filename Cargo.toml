@@ -15,7 +15,7 @@ features = ["tag", "source"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace]
-members = ["ziyy-core", "ziyy-proc"]
+members = ["crates/*"]
 
 [dependencies]
 ziyy-core = { path = "ziyy-core" }
