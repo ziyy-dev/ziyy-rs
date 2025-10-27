@@ -1,11 +1,32 @@
-# Ziyy - Terminal Markup Language.
+# Ziyy - Simple terminal styling.
 
-<p align="center">
-  <img src='logo.svg' width='250'>
-</p>
+Ziyy is a markup language that allows you to style your terminal using HTML-like syntax.
 
-## Overview
-Style your Terminal using HTML.
+For information on using Ziyy, see the [Ziyy website](https://ziyy-dev.github.io).
 
-## Tag Reference
-WIP
+## Usage
+
+### Command line
+
+```bash
+ziyy -c "<b>Lorem
+    <d> dolor sit
+        <b>amet consectetur
+            <d>adipiscing elit</d>
+            quisque
+        </b>faucibus ex sapien."
+
+```
+
+## As a Library
+
+```rust
+use ziyy::style;
+
+let styled = style("<b>Lorem
+    <d> dolor sit
+        <b>amet consectetur
+            <d>adipiscing elit</d>
+            quisque
+        </b>faucibus ex sapien.");
+```

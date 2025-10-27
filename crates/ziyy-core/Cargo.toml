@@ -1,7 +1,16 @@
 [package]
-edition = "2021"
-name    = "ziyy-core"
-version = "0.1.0"
+categories  = ["command-line-interface", "command-line-utilities"]
+description = "Terminal Styling using HTML-like syntax."
+edition     = "2024"
+keywords    = ["terminal", "ansi", "style", "html", "cli"]
+license     = "MIT OR Apache-2.0"
+name        = "ziyy-core"
+repository  = "https://github.com/ziyy-dev/ziyy-rs.git"
+version     = "0.1.4"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition"]
 
 [lib]
 name = "ziyy_core"

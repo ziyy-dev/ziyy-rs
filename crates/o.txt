@@ -1,4 +1,0 @@
-Hello [1m World! You
-Hello [1m World![22m You
-Hello [1m World![22m You
-Hello [22m World! You

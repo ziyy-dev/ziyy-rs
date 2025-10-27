@@ -1,12 +1,15 @@
 [package]
-name = "ziyy-proc"
-version = "0.1.0"
-edition = "2021"
+categories = ["command-line-interface", "command-line-utilities"]
+edition    = "2024"
+keywords   = ["terminal", "ansi", "style", "html", "cli"]
+license    = "MIT OR Apache-2.0"
+name       = "ziyy-proc"
+version    = "0.1.0"
 
 [lib]
-name = "ziyy_proc"
-path = "src/lib.rs"
 proc-macro = true
 
 [dependencies]
-ziyy-core = { path = "../ziyy-core" }
+quote     = "1.0.40"
+syn       = { version = "2.0.104", features = ["full"] }
+ziyy-core = { path = "../ziyy-core", version = "0.1.4" }
