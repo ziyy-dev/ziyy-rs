@@ -1,14 +1,14 @@
+use std::ops::{Add, Not, Sub};
+
+use crate::error::{Error, ErrorKind, Result};
+use crate::scanner::Scanner;
+use crate::scanner::{Token, TokenKind};
+use crate::shared::{Input, Span};
+use crate::style::convert::FromU32;
+
 pub use ansi256::Ansi256;
 pub use ansi_color::AnsiColor;
 pub use rgb::Rgb;
-
-use crate::number;
-use crate::scanner::span::Span;
-use crate::scanner::token::{Token, TokenKind};
-use crate::scanner::Scanner;
-use crate::style::convert::FromU32;
-use crate::{Error, ErrorKind, Result};
-use std::ops::{Add, Not, Sub};
 
 mod ansi256;
 mod ansi_color;
@@ -49,10 +49,13 @@ impl Color {
         self.to_string(kind).into_bytes()
     }
 
-    pub(crate) fn parse<'src>(source: &'src str, span: Span) -> Result<'src, Self> {
+    pub(crate) fn parse<'src, I: ?Sized + Input>(
+        source: &'src I,
+        span: Span,
+    ) -> Result<'src, I, Self> {
         let mut scanner = Scanner::new(source);
         scanner.text_mode = false;
-        scanner.parse_colors = true;
+        scanner.parse_hex = true;
         scanner.current_pos = span.start;
 
         let token = scanner.scan_token()?;
@@ -102,7 +105,7 @@ impl Color {
     }
 }
 
-fn expect<'src>(token: &Token<'src>, tt: TokenKind) -> Result<'src, ()> {
+fn expect<'src, I: ?Sized + Input>(token: &Token<'src, I>, tt: TokenKind) -> Result<'src, I, ()> {
     if token.kind != tt {
         return Err(Error::new(
             ErrorKind::UnexpectedToken {

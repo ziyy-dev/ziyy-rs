@@ -1,5 +1,6 @@
-use super::super::convert::FromU8;
 use std::ops::{Add, Not, Sub};
+
+use super::super::convert::FromU8;
 
 macro_rules! define_switch {
     (
@@ -16,7 +17,8 @@ macro_rules! define_switch {
 
         impl $name {
             #[must_use]
-            pub fn as_str(&self) -> &str {
+            #[inline]
+            pub const fn as_str(&self) -> &str {
                 use $name::*;
 
                 match self {
@@ -26,12 +28,14 @@ macro_rules! define_switch {
             }
 
             #[must_use]
-            pub fn as_bytes(&self) -> &[u8] {
+            #[inline]
+            pub const fn as_bytes(&self) -> &[u8] {
                 self.as_str().as_bytes()
             }
 
             #[must_use]
-            pub fn is_set(&self) -> bool {
+            #[inline]
+            pub const fn is_set(&self) -> bool {
                 use $name::*;
 
                 match self {
@@ -41,12 +45,14 @@ macro_rules! define_switch {
             }
 
             #[must_use]
-            pub fn is_unset(&self) -> bool {
+            #[inline]
+            pub const fn is_unset(&self) -> bool {
                 !self.is_set()
             }
         }
 
         impl FromU8 for $name {
+            #[inline]
             fn from_u8(value: u8) -> Self {
                 use $name::*;
 
@@ -61,6 +67,7 @@ macro_rules! define_switch {
         impl Add for $name {
             type Output = $name;
 
+            #[inline]
             fn add(self, rhs: Self) -> Self::Output {
                 use $name::*;
 
@@ -74,6 +81,7 @@ macro_rules! define_switch {
         impl Sub for $name {
             type Output = $name;
 
+            #[inline]
             fn sub(self, rhs: Self) -> Self::Output {
                 use $name::*;
 
@@ -87,6 +95,7 @@ macro_rules! define_switch {
         impl Not for $name {
             type Output = $name;
 
+            #[inline]
             fn not(self) -> Self::Output {
                 use $name::*;
 
@@ -105,12 +114,14 @@ define_switch! {
     }
 }
 
+#[cfg(feature = "uncommon")]
 define_switch! {
     enum Reserved1 {
         on: "\x1b[56m"
     }
 }
 
+#[cfg(feature = "uncommon")]
 define_switch! {
     enum Reserved2 {
         on: "\x1b[57m"

@@ -1,17 +1,21 @@
+use std::ops::{Add, Not, Sub};
+
 use super::convert::FromU8;
+
 pub use blink::*;
-pub use color::*;
+#[cfg(feature = "uncommon")]
 pub use font::*;
+#[cfg(feature = "uncommon")]
 pub use frame::*;
 pub use intensity::*;
 pub use italics::*;
-use std::ops::{Add, Not, Sub};
 pub use switch::*;
 pub use underline::*;
 
 mod blink;
-mod color;
+#[cfg(feature = "uncommon")]
 mod font;
+#[cfg(feature = "uncommon")]
 mod frame;
 mod intensity;
 mod italics;
@@ -35,7 +39,8 @@ macro_rules! define_effect {
 
         impl $name {
             #[must_use]
-            pub fn as_str(&self) -> &str {
+            #[inline]
+            pub const fn as_str(&self) -> &str {
                 use $name::*;
 
                 match self {
@@ -46,12 +51,14 @@ macro_rules! define_effect {
             }
 
             #[must_use]
-            pub fn as_bytes(&self) -> &[u8] {
+            #[inline]
+            pub const fn as_bytes(&self) -> &[u8] {
                 self.as_str().as_bytes()
             }
         }
 
         impl FromU8 for $name {
+            #[inline]
             fn from_u8(value: u8) -> Self {
                 use $name::*;
 
@@ -67,6 +74,7 @@ macro_rules! define_effect {
         impl Add for $name {
             type Output = $name;
 
+            #[inline]
             fn add(self, rhs: Self) -> Self::Output {
                 use $name::*;
 
@@ -89,6 +97,7 @@ macro_rules! define_effect {
         impl Sub for $name {
             type Output = $name;
 
+            #[inline]
             fn sub(self, rhs: Self) -> Self::Output {
                 use $name::*;
 
@@ -103,6 +112,7 @@ macro_rules! define_effect {
         impl Not for $name {
             type Output = $name;
 
+            #[inline]
             fn not(self) -> Self::Output {
                 use $name::*;
 
@@ -136,6 +146,7 @@ define_effect! {
     }
 }
 
+#[cfg(feature = "uncommon")]
 define_effect! {
     enum Overline {
         set: "\x1b[53m",
@@ -143,34 +154,10 @@ define_effect! {
     }
 }
 
+#[cfg(feature = "uncommon")]
 define_effect! {
     enum PropSpace {
         set: "\x1b[26m",
         unset: "\x1b[50m",
     }
-}
-
-macro_rules! impl_set_unset {
-    ($($name:tt)*) => {
-        $(
-            impl $name {
-                #[must_use] pub fn is_set(&self) -> bool {
-                    use $name::*;
-
-                    match self {
-                        None => false,
-                        _ => true,
-                    }
-                }
-
-                #[must_use] pub fn is_unset(&self) -> bool {
-                    !self.is_set()
-                }
-            }
-        )*
-    };
-}
-
-impl_set_unset! {
-    Blink Color Delete Font FontStyle Frame Hide Intensity Invert Overline PropSpace Underline
 }

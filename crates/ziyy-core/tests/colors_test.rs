@@ -1,8 +1,9 @@
-use ziyy_core::{document, Ansi256, AnsiColor, Rgb};
-use ziyy_core::{Chunk, Color};
+use ziyy_core::render_to_doc;
+use ziyy_core::style::*;
+use ziyy_core::Chunk;
 
 fn assert_fg_colors_eq(source: &str, color: Color) {
-    let doc = document(source);
+    let doc = render_to_doc(source);
     let node = doc.root().first_child().unwrap();
     let chunk = node.value();
     let Chunk::Tag(tag) = chunk else { panic!() };
@@ -12,7 +13,7 @@ fn assert_fg_colors_eq(source: &str, color: Color) {
 }
 
 fn assert_bg_colors_eq(source: &str, color: Color) {
-    let doc = document(source);
+    let doc = render_to_doc(source);
     let node = doc.root().first_child().unwrap();
     let chunk = node.value();
     let Chunk::Tag(tag) = chunk else { panic!() };

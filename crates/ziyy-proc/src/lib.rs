@@ -2,7 +2,7 @@ use core::iter::FromIterator;
 use proc_macro::{Literal, TokenStream, TokenTree};
 
 #[proc_macro]
-pub fn ziyy(item: TokenStream) -> TokenStream {
+pub fn zstr(item: TokenStream) -> TokenStream {
     let mut tokens: Vec<_> = item.into_iter().collect();
 
     if !tokens.is_empty() {

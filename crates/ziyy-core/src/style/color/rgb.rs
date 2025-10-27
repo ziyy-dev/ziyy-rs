@@ -1,9 +1,7 @@
-use crate::number;
-use crate::scanner::token::TokenKind;
+use crate::error::{Error, ErrorKind, Result};
 use crate::scanner::Scanner;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::scanner::TokenKind;
+use crate::shared::Input;
 
 use super::expect;
 use super::ColorKind;
@@ -13,12 +11,15 @@ pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Rgb {
     #[must_use]
+    #[inline]
     pub fn to_string(&self, kind: ColorKind) -> String {
         let Rgb(r, g, b) = self;
         format!("\x1b[{};2;{r};{g};{b}m", kind as u8 + 8)
     }
 
-    pub(crate) fn parse<'src>(scanner: &mut Scanner<'src>) -> Result<'src, Self> {
+    pub(crate) fn parse<'src, I: ?Sized + Input>(
+        scanner: &mut Scanner<'src, I>,
+    ) -> Result<'src, I, Self> {
         let token = scanner.scan_token()?;
         let mut r = 0;
         let mut g = 0;
@@ -41,7 +42,7 @@ impl Rgb {
                 b = number!(token.content, 10, &token);
             }
 
-            TokenKind::HEX => match token.content.len() {
+            TokenKind::HEX => match token.content.as_ref().len() {
                 4 => {
                     /* r = number!(&token.content[1..2].repeat(2), 16, &token);
                     g = number!(&token.content[2..3].repeat(2), 16, &token);

@@ -1,60 +1,61 @@
-use std::{error, fmt};
+use std::fmt::{Debug, Display};
+use std::{error, fmt, io};
 
-use crate::scanner::span::Span;
-use crate::scanner::token::{Token, TokenKind};
-use crate::TagName;
+use crate::parser::TagName;
+use crate::scanner::{Token, TokenKind};
+use crate::shared::{Input, Span};
+
+/// Result
+pub type Result<'src, I, T> = std::result::Result<T, Error<'src, I>>;
 
 /// Represents an error with additional context such as its type, message, and location.
-#[derive(Debug)]
-pub struct Error<'src> {
+pub struct Error<'src, I: ?Sized + Input> {
     /// The type of the error.
-    pub(crate) kind: ErrorKind<'src>,
+    pub(crate) kind: ErrorKind<'src, I>,
     /// The span in the source where the error occurred.
     pub(crate) span: Span,
 }
 
-impl<'src> Error<'src> {
+impl<'src, I: ?Sized + Input> Error<'src, I> {
     #[must_use]
-    pub fn kind(&self) -> &ErrorKind<'src> {
+    pub fn kind(&self) -> &ErrorKind<'src, I> {
         &self.kind
     }
 }
 
-impl error::Error for Error<'_> {}
-
-impl fmt::Display for Error<'_> {
+impl<I: ?Sized + Debug + Input> Debug for Error<'_, I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("error: ")?;
-        match &self.kind {
-            ErrorKind::BuiltinTagOverwrite(name) => {
-                f.write_fmt(format_args!("attempt to overwrite builtin tag: `{name}`"))
-            }
-            ErrorKind::UnexpectedToken { expected, found } => match found {
-                Some(found) => f.write_fmt(format_args!(
-                    "unexpected token, expected {expected:?} but found `{found}`"
-                )),
-                None => f.write_fmt(format_args!("unexpected token, expected {expected:?}")),
-            },
-            ErrorKind::UnknownToken(tok) => f.write_fmt(format_args!("Unknown token: {tok}")),
-            ErrorKind::MisMatchedTags { open, close } => {
-                f.write_fmt(format_args!("mismatched tags: <{open}>...</{close}>"))
-            }
-            ErrorKind::InvalidNumber(number) => {
-                f.write_fmt(format_args!("invalid number: `{number}`"))
-            }
-            ErrorKind::InvalidColor(color) => f.write_fmt(format_args!("invalid color: '{color}'")),
-            ErrorKind::InvalidTagName(name) => {
-                f.write_fmt(format_args!("invalid tag name: `{name}`"))
-            }
-            ErrorKind::UnexpectedEof => f.write_str("Unexpected Eof"),
-            ErrorKind::UnterminatedString => f.write_str("unterminated string"),
-        }?;
-
-        f.write_fmt(format_args!(" at {}", self.span))
+        f.debug_struct("Error")
+            .field("kind", &self.kind)
+            .field("span", &self.span)
+            .finish()
     }
 }
 
-impl<'src> Error<'src> {
+impl<I: ?Sized + Display + Input> fmt::Display for Error<'_, I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("error: ")?;
+        self.kind.fmt(f)?;
+        if self.span == Span::inserted() {
+            Ok(())
+        } else {
+            f.write_fmt(format_args!(" at {}", self.span))
+        }
+    }
+}
+
+impl<I: ?Sized + Debug + Display + Input> error::Error for Error<'_, I> {}
+
+impl<'src, I: ?Sized + Input> From<io::Error> for Error<'src, I> {
+    fn from(value: io::Error) -> Self {
+        Error {
+            kind: ErrorKind::IoError(value),
+            span: Span::inserted(),
+        }
+    }
+}
+
+impl<'src, I: ?Sized + Input> Error<'src, I> {
     /// Creates a new `Error` instance.
     ///
     /// # Arguments
@@ -65,7 +66,7 @@ impl<'src> Error<'src> {
     /// # Returns
     ///
     /// A new `Error` instance.
-    pub(crate) fn new(kind: ErrorKind<'src>, token: &Token) -> Self {
+    pub(crate) fn new(kind: ErrorKind<'src, I>, token: &Token<I>) -> Self {
         Self {
             kind,
             span: token.span,
@@ -74,29 +75,86 @@ impl<'src> Error<'src> {
 }
 
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
 /// Represents the different kinds of parse errors.
-pub enum ErrorKind<'src> {
-    BuiltinTagOverwrite(&'src str),
+pub enum ErrorKind<'src, I: ?Sized + Input> {
+    BuiltinTagOverwrite(&'src I),
     /// Indicates an invalid color was encountered.
-    InvalidColor(&'src str),
+    IoError(io::Error),
+    InvalidColor(&'src I),
     /// Indicates an invalid number was encountered.
-    InvalidNumber(&'src str),
-    InvalidTagName(&'src str),
+    InvalidNumber(&'src I),
+    InvalidTagName(&'src I),
     /// Mismatched opening and closing tags.
     MisMatchedTags {
-        open: TagName<'src>,
-        close: TagName<'src>,
+        open: TagName<'src, I>,
+        close: TagName<'src, I>,
     },
     /// Indicates the end of input was reached unexpectedly.
     UnexpectedEof,
     /// Indicates an unexpected token was encountered.
     UnexpectedToken {
         expected: TokenKind,
-        found: Option<&'src str>,
+        found: Option<&'src I>,
     },
     /// An unknown token was encountered.
-    UnknownToken(&'src str),
+    UnknownToken(&'src I),
     /// Indicates an unterminated string literal.
     UnterminatedString,
+}
+
+impl<'src, I: ?Sized + Debug + Input> Debug for ErrorKind<'src, I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BuiltinTagOverwrite(arg0) => {
+                f.debug_tuple("BuiltinTagOverwrite").field(arg0).finish()
+            }
+            Self::IoError(arg0) => f.debug_tuple("IoError").field(arg0).finish(),
+            Self::InvalidColor(arg0) => f.debug_tuple("InvalidColor").field(arg0).finish(),
+            Self::InvalidNumber(arg0) => f.debug_tuple("InvalidNumber").field(arg0).finish(),
+            Self::InvalidTagName(arg0) => f.debug_tuple("InvalidTagName").field(arg0).finish(),
+            Self::MisMatchedTags { open, close } => f
+                .debug_struct("MisMatchedTags")
+                .field("open", open)
+                .field("close", close)
+                .finish(),
+            Self::UnexpectedEof => write!(f, "UnexpectedEof"),
+            Self::UnexpectedToken { expected, found } => f
+                .debug_struct("UnexpectedToken")
+                .field("expected", expected)
+                .field("found", found)
+                .finish(),
+            Self::UnknownToken(arg0) => f.debug_tuple("UnknownToken").field(arg0).finish(),
+            Self::UnterminatedString => write!(f, "UnterminatedString"),
+        }
+    }
+}
+
+impl<'src, I: ?Sized + Display + Input> Display for ErrorKind<'src, I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ErrorKind::BuiltinTagOverwrite(name) => {
+                f.write_fmt(format_args!("attempt to overwrite builtin tag: `{name}`"))
+            }
+            ErrorKind::IoError(error) => Display::fmt(&error.kind(), f),
+            ErrorKind::InvalidNumber(number) => {
+                f.write_fmt(format_args!("invalid number: `{number}`"))
+            }
+            ErrorKind::InvalidColor(color) => f.write_fmt(format_args!("invalid color: '{color}'")),
+            ErrorKind::InvalidTagName(name) => {
+                f.write_fmt(format_args!("invalid tag name: `{name}`"))
+            }
+            ErrorKind::MisMatchedTags { open, close } => {
+                f.write_fmt(format_args!("mismatched tags: <{open}>...</{close}>"))
+            }
+            ErrorKind::UnexpectedEof => f.write_str("Unexpected Eof"),
+            ErrorKind::UnexpectedToken { expected, found } => match found {
+                Some(found) => f.write_fmt(format_args!(
+                    "unexpected token, expected {expected:?} but found `{found}`"
+                )),
+                None => f.write_fmt(format_args!("unexpected token, expected {expected:?}")),
+            },
+            ErrorKind::UnknownToken(tok) => f.write_fmt(format_args!("Unknown token: {tok}")),
+            ErrorKind::UnterminatedString => f.write_str("unterminated string"),
+        }
+    }
 }

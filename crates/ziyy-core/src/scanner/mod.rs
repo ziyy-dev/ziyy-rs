@@ -1,39 +1,11 @@
-pub mod position;
-pub mod span;
-pub mod token;
+use crate::error::{Error, ErrorKind, Result};
+use crate::shared::{Input, Position, Span};
 
-use position::Position;
-use span::Span;
+pub use token::{Token, TokenKind};
+pub use utils::*;
 
-use crate::{
-    scanner::token::{Token, TokenKind},
-    ErrorKind, Result,
-};
-use core::str;
-
-fn is_alpha(c: char) -> bool {
-    c.is_ascii_alphabetic() || c == '_'
-}
-
-fn is_valid(c: char) -> bool {
-    c == ':' || c == '-' || c == '.'
-}
-
-fn is_digit(c: char) -> bool {
-    c.is_ascii_digit()
-}
-
-fn is_hexdigit(c: char) -> bool {
-    c.is_ascii_hexdigit()
-}
-
-fn is_octdigit(c: char) -> bool {
-    matches!(c, '0'..'8')
-}
-
-pub fn is_whitespace(c: char) -> bool {
-    c.is_ascii_whitespace()
-}
+mod token;
+mod utils;
 
 /// A struct representing a scanner for tokenizing input strings.
 ///
@@ -41,17 +13,17 @@ pub fn is_whitespace(c: char) -> bool {
 ///
 /// * `T` - A type that can be referenced as a string slice.
 #[derive(Clone)]
-pub struct Scanner<'src> {
-    pub(crate) source: &'src str,
+pub struct Scanner<'src, I: ?Sized + Input> {
+    pub(crate) source: &'src I,
     start: u32,
     current: u32,
     pub(crate) text_mode: bool,
-    pub(crate) parse_colors: bool,
+    pub(crate) parse_hex: bool,
     pub start_pos: Position,
     pub current_pos: Position,
 }
 
-impl<'src> Scanner<'src> {
+impl<'src, I: ?Sized + Input> Scanner<'src, I> {
     /// Creates a new `Scanner` instance with the given source string.
     ///
     /// # Arguments
@@ -61,15 +33,15 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A new `Scanner` instance.
-    pub fn new(source: &'src str) -> Self {
+    pub fn new(input: &'src I) -> Self {
         Scanner {
-            source,
+            source: input,
             start: 0,
             current: 0,
             text_mode: true,
-            parse_colors: false,
-            start_pos: Position::default(),
-            current_pos: Position::default(),
+            parse_hex: false,
+            start_pos: Position::new(1, 1),
+            current_pos: Position::new(1, 1),
         }
     }
 
@@ -79,7 +51,7 @@ impl<'src> Scanner<'src> {
     ///
     /// * `true` if the scanner is at the end of the source string, `false` otherwise.
     pub fn is_at_end(&mut self) -> bool {
-        self.current as usize + 1 > self.source.len()
+        self.current as usize + 1 > self.source.as_ref().len()
     }
 
     /// Advances the scanner by one character and returns the character.
@@ -90,7 +62,7 @@ impl<'src> Scanner<'src> {
     pub fn advance(&mut self) -> char {
         self.current += 1;
         self.current_pos.col += 1;
-        let ch = self.source.as_bytes()[self.current as usize - 1] as char;
+        let ch = self.source.as_ref()[self.current as usize - 1] as char;
         if ch == '\n' {
             self.current_pos.row += 1;
             self.current_pos.col = 0;
@@ -109,7 +81,7 @@ impl<'src> Scanner<'src> {
     ///
     /// * The character at the current position, or `'\0'` if at the end.
     pub fn peek(&mut self, offset: usize) -> char {
-        if let Some(c) = self.source.as_bytes().get(self.current as usize + offset) {
+        if let Some(c) = self.source.as_ref().get(self.current as usize + offset) {
             *c as char
         } else {
             '\0'
@@ -126,7 +98,7 @@ impl<'src> Scanner<'src> {
     ///
     /// * A `Result` containing the created token.
     #[allow(clippy::unnecessary_wraps)]
-    pub fn make_token(&mut self, kind: TokenKind) -> Result<'src, Token<'src>> {
+    pub fn make_token(&mut self, kind: TokenKind) -> Result<'src, I, Token<'src, I>> {
         let s = &self.source[(self.start as usize)..self.current as usize];
         let span = Span::new(self.start_pos, self.current_pos);
 
@@ -152,7 +124,7 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the created error token.
-    pub fn error_token(&self, eof: bool) -> Result<'src, Token<'src>> {
+    pub fn error_token(&self, eof: bool) -> Result<'src, I, Token<'src, I>> {
         let s = &self.source[(self.start as usize)..self.current as usize];
         let span = Span::new(self.start_pos, self.current_pos);
         let kind = if eof {
@@ -160,7 +132,7 @@ impl<'src> Scanner<'src> {
         } else {
             ErrorKind::UnknownToken(s)
         };
-        Err(crate::Error { kind, span })
+        Err(Error { kind, span })
     }
 
     /// Creates a text token.
@@ -168,7 +140,7 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the created text token.
-    pub fn text_token(&mut self, c: char) -> Result<'src, Token<'src>> {
+    pub fn text_token(&mut self, c: char) -> Result<'src, I, Token<'src, I>> {
         if is_whitespace(c) {
             return self.whitespace();
         }
@@ -217,7 +189,9 @@ impl<'src> Scanner<'src> {
     /// * The token kind if the keyword matches, `TokenKind::Identifier` otherwise.
     pub fn check_keyword(&mut self, start: usize, rest: &str, kind: TokenKind) -> TokenKind {
         let s = &self.source[(self.start as usize + start)..self.current as usize];
-        if (self.current - self.start) as usize == start + rest.len() && s == rest {
+        if (self.current - self.start) as usize == start + rest.len()
+            && s.as_ref() == rest.as_bytes()
+        {
             kind
         } else {
             TokenKind::IDENTIFIER
@@ -241,7 +215,7 @@ impl<'src> Scanner<'src> {
         macro_rules! get {
             ($idx:expr, $kind:expr) => {
                 if self.current - self.start > $idx {
-                    self.source.as_bytes()[self.start as usize + $idx] as char
+                    self.source.as_ref()[self.start as usize + $idx] as char
                 } else {
                     return $kind;
                 }
@@ -249,7 +223,7 @@ impl<'src> Scanner<'src> {
 
             ($idx:expr) => {
                 if self.current - self.start > $idx {
-                    self.source.as_bytes()[self.start as usize + $idx] as char
+                    self.source.as_ref()[self.start as usize + $idx] as char
                 } else {
                     return IDENTIFIER;
                 }
@@ -422,7 +396,7 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the scanned identifier token.
-    pub fn identifier(&mut self) -> Result<'src, Token<'src>> {
+    pub fn identifier(&mut self) -> Result<'src, I, Token<'src, I>> {
         while is_alpha(self.peek(0)) || is_digit(self.peek(0)) || is_valid(self.peek(0)) {
             self.advance();
         }
@@ -435,7 +409,7 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the scanned hexadecimal token.
-    pub fn hex(&mut self) -> Result<'src, Token<'src>> {
+    pub fn hex(&mut self) -> Result<'src, I, Token<'src, I>> {
         while is_hexdigit(self.peek(0)) {
             self.advance();
         }
@@ -447,7 +421,7 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the scanned number token.
-    pub fn number(&mut self) -> Result<'src, Token<'src>> {
+    pub fn number(&mut self) -> Result<'src, I, Token<'src, I>> {
         while is_digit(self.peek(0)) {
             self.advance();
         }
@@ -464,7 +438,7 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the scanned string token.
-    pub fn string(&mut self, ch: char) -> Result<'src, Token<'src>> {
+    pub fn string(&mut self, ch: char) -> Result<'src, I, Token<'src, I>> {
         while self.peek(0) != ch && !self.is_at_end() {
             self.advance();
         }
@@ -475,7 +449,7 @@ impl<'src> Scanner<'src> {
         self.make_token(TokenKind::STRING)
     }
 
-    pub fn comment(&mut self) -> Result<'src, Token<'src>> {
+    pub fn comment(&mut self) -> Result<'src, I, Token<'src, I>> {
         loop {
             if self.is_at_end() {
                 break;
@@ -498,7 +472,7 @@ impl<'src> Scanner<'src> {
         self.make_token(TokenKind::COMMENT)
     }
 
-    pub fn ansi_sgr(&mut self, esc: bool) -> Result<'src, Token<'src>> {
+    pub fn ansi_sgr(&mut self, esc: bool) -> Result<'src, I, Token<'src, I>> {
         if !matches!(self.peek(0), '\x30'..='\x39' | '\x3b' | '\x40'..='\x7e') {
             let c = self.peek(0);
             return self.text_token(c);
@@ -526,7 +500,7 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the scanned whitespace token.
-    pub fn whitespace(&mut self) -> Result<'src, Token<'src>> {
+    pub fn whitespace(&mut self) -> Result<'src, I, Token<'src, I>> {
         while is_whitespace(self.peek(0)) {
             self.advance();
         }
@@ -538,7 +512,7 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the scanned escape sequence token.
-    pub fn escape(&mut self) -> Result<'src, Token<'src>> {
+    pub fn escape(&mut self) -> Result<'src, I, Token<'src, I>> {
         let c = self.advance();
 
         macro_rules! scan_until {
@@ -594,7 +568,7 @@ impl<'src> Scanner<'src> {
     /// # Returns
     ///
     /// * A `Result` containing the scanned token.
-    pub fn scan_token(&mut self) -> Result<'src, Token<'src>> {
+    pub fn scan_token(&mut self) -> Result<'src, I, Token<'src, I>> {
         self.skip_whitespace();
         self.start = self.current;
         self.start_pos = self.current_pos;
@@ -631,11 +605,14 @@ impl<'src> Scanner<'src> {
             }
             '/' => match self.peek(0) {
                 '>' => {
-                    self.advance();
+                    self.advance_n(1);
                     self.text_mode = true;
                     self.make_token(TokenKind::SLASH_GREAT)
                 }
-                _ => self.make_token(TokenKind::SLASH),
+                _ => {
+                    self.text_mode = true;
+                    self.make_token(TokenKind::SLASH)
+                }
             },
             '>' => self.make_token(TokenKind::GREAT),
             '<' => match self.peek(0) {
@@ -675,7 +652,7 @@ impl<'src> Scanner<'src> {
                 _ => self.make_token(TokenKind::LESS),
             },
             _ => {
-                if self.parse_colors && c == '#' {
+                if self.parse_hex && c == '#' {
                     self.hex()
                 } else {
                     self.error_token(false)
@@ -684,7 +661,7 @@ impl<'src> Scanner<'src> {
         }
     }
 
-    pub fn scan_one(&mut self) -> Option<Token<'src>> {
+    pub fn scan_one(&mut self) -> Option<Token<'src, I>> {
         let token = self.scan_token().ok()?;
         let eof = self.scan_token().ok()?;
         if eof.kind == TokenKind::EOF {

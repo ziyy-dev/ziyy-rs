@@ -1,4 +1,4 @@
-use super::span::Span;
+use crate::shared::{Input, Span};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(non_camel_case_types)]
@@ -100,8 +100,8 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct Token<'src> {
+pub struct Token<'src, I: ?Sized + Input> {
     pub kind: TokenKind,
-    pub content: &'src str,
+    pub content: &'src I,
     pub span: Span,
 }

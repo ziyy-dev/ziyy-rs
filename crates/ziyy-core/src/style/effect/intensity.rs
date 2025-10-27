@@ -1,5 +1,6 @@
-use super::super::convert::FromU8;
 use std::ops::{Add, Not, Sub};
+
+use super::super::convert::FromU8;
 
 #[repr(u8)]
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
@@ -14,7 +15,8 @@ pub enum Intensity {
 }
 
 impl Intensity {
-    pub(in crate::style) fn as_str2(&self, prev: Intensity) -> &str {
+    #[inline]
+    pub(in crate::style) const fn as_str2(&self, prev: Intensity) -> &str {
         use Intensity::{Bold, Dim, NoBold, NoDim, None, Unset};
 
         match (prev, self) {
@@ -31,22 +33,26 @@ impl Intensity {
         }
     }
 
-    pub(in crate::style) fn _as_bytes(&self, prev: Intensity) -> &[u8] {
+    #[inline]
+    pub(in crate::style) const fn _as_bytes(&self, prev: Intensity) -> &[u8] {
         self.as_str2(prev).as_bytes()
     }
 
     #[must_use]
-    pub fn as_str(&self) -> &str {
+    #[inline]
+    pub const fn as_str(&self) -> &str {
         self.as_str2(Intensity::None)
     }
 
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    #[inline]
+    pub const fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
 }
 
 impl FromU8 for Intensity {
+    #[inline]
     fn from_u8(value: u8) -> Self {
         use Intensity::{Bold, Dim, NoBold, NoDim, None, Unset};
 
@@ -65,6 +71,7 @@ impl FromU8 for Intensity {
 impl Add for Intensity {
     type Output = Intensity;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         use Intensity::{Bold, Dim, NoBold, NoDim, None, Unset};
 
@@ -96,6 +103,7 @@ impl Add for Intensity {
 impl Sub for Intensity {
     type Output = Intensity;
 
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         use Intensity::None;
 
@@ -110,6 +118,7 @@ impl Sub for Intensity {
 impl Not for Intensity {
     type Output = Intensity;
 
+    #[inline]
     fn not(self) -> Self::Output {
         use Intensity::{Bold, Dim, NoBold, NoDim, None};
 

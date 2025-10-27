@@ -1,5 +1,6 @@
-use crate::style::convert::FromU8;
 use std::ops::{Add, Not, Sub};
+
+use super::super::convert::FromU8;
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub enum Font {
@@ -19,7 +20,8 @@ pub enum Font {
 
 impl Font {
     #[must_use]
-    pub fn as_str(&self) -> &str {
+    #[inline]
+    pub const fn as_str(&self) -> &str {
         use Font::{
             EighthAlt, FifthAlt, FirstAlt, FourthAlt, NinthAlt, None, Primary, SecondAlt,
             SeventhAlt, SixthAlt, ThirdAlt,
@@ -41,12 +43,14 @@ impl Font {
     }
 
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    #[inline]
+    pub const fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
 }
 
 impl FromU8 for Font {
+    #[inline]
     fn from_u8(value: u8) -> Self {
         use Font::{
             EighthAlt, FifthAlt, FirstAlt, FourthAlt, NinthAlt, None, Primary, SecondAlt,
@@ -73,6 +77,7 @@ impl FromU8 for Font {
 impl Add for Font {
     type Output = Font;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         use Font::{None, Primary};
 
@@ -88,6 +93,7 @@ impl Add for Font {
 impl Sub for Font {
     type Output = Font;
 
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         use Font::None;
 
@@ -102,6 +108,7 @@ impl Sub for Font {
 impl Not for Font {
     type Output = Font;
 
+    #[inline]
     fn not(self) -> Self::Output {
         use Font::{None, Primary};
 

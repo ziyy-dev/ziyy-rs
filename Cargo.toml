@@ -1,22 +1,24 @@
 [package]
-name = "ziyy"
-version = "2.0.0-beta.2"
-readme = "../README.md"
-repository = "https://github.com/alMukaafih/ziyy.git"
-edition = "2021"
+categories  = ["command-line-interface", "command-line-utilities"]
 description = "Terminal Markup Language."
-license = "MIT OR Apache-2.0"
-keywords = ["terminal", "html", "style", "rgb", "cli"]
-categories = ["command-line-interface", "command-line-utilities"]
-resolver = "2"
+edition     = "2021"
+keywords    = ["terminal", "html", "style", "rgb", "cli"]
+license     = "MIT OR Apache-2.0"
+name        = "ziyy"
+readme      = "../README.md"
+repository  = "https://github.com/alMukaafih/ziyy.git"
+resolver    = "2"
+version     = "2.0.0-beta.2"
 
 [package.metadata.docs.rs]
-features = ["tag", "source"]
+features     = ["tag", "source"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace]
 members = ["crates/*"]
 
 [dependencies]
-ziyy-core = { path = "ziyy-core" }
-ziyy-proc = { path = "ziyy-proc" }
+getopts = "0.2.24"
+terminal_size = "0.4.3"
+ziyy-core = { path = "crates/ziyy-core" }
+ziyy-proc = { path = "crates/ziyy-proc" }

@@ -4,8 +4,8 @@ use std::fs::File;
 use std::io::{stdin, stdout, BufReader, Read, Write};
 use std::path::Path;
 use std::process::exit;
-use ziyy::{zprint, Error, Parser};
-use ziyy_core::{document, Context};
+use ziyy::{zprint, Error, Renderer};
+use ziyy_core::render_to_doc;
 
 mod arg;
 
@@ -105,7 +105,7 @@ fn main() {
 fn parse_to_out(source: &str, out: &mut impl Write, options: Options) {
     let mut f = || {
         if options.tree {
-            let _ = out.write(document(source).to_string().as_bytes());
+            let _ = out.write(render_to_doc(source).to_string().as_bytes());
         } else {
             match options.escape_only {
                 true => todo!(),
@@ -125,7 +125,7 @@ fn parse_to_out(source: &str, out: &mut impl Write, options: Options) {
         } */
 
         // let _ = out.write(buf.as_bytes());
-        Ok::<(), Error>(())
+        Ok::<(), Error<str>>(())
     };
     if let Err(err) = f() {
         println!(
@@ -137,11 +137,9 @@ fn parse_to_out(source: &str, out: &mut impl Write, options: Options) {
     }
 }
 
-pub fn parse<'src>(source: &'src str, out: &mut impl Write) -> ziyy::Result<'src, ()> {
-    let mut parser = Parser::new();
-    let result = parser.parse_to_bytes(Context::new(source, None))?;
-    let _ = out.write(&result);
-    Ok(())
+pub fn parse<'src>(source: &'src str, out: &mut impl Write) -> ziyy::Result<'src, str, ()> {
+    let mut renderer = Renderer::new(out);
+    renderer.write_str(source)
 }
 
 fn usage() {
@@ -154,8 +152,7 @@ fn usage() {
 
 <pre>Ziyy's compiler.
 
-<g>Usage:</g>
-<cy><b>{0}</b> [OPTIONS] \<FILE\>\n       <b>{0}</b> [OPTIONS] <b>-c</b> [ARGS]...</cy>
+<g>Usage:</g> <cy><b>{0}</b> [OPTIONS] \<FILE\>\n       <b>{0}</b> [OPTIONS] <b>-c</b> [ARGS]...</cy>
 
 <g>Options:</g>
 <bc>  -V, --version</bc>     Print version info and exit
@@ -164,9 +161,9 @@ fn usage() {
 <bc>  -n, --no-newline</bc>  Suppress emiting newline after output. Available only on --cli option
 <bc>  -h, --help</bc>        Print help
 <bc>      --strip</bc>       Strip styles from output
+<bc>      --tree</bc>        Strip styles from output
 </pre>
-        </ziyy>
-        "#,
+        </ziyy>"#,
         env!("CARGO_BIN_NAME")
     );
 }

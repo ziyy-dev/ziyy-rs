@@ -1,5 +1,6 @@
-use super::super::convert::FromU8;
 use std::ops::{Add, Not, Sub};
+
+use super::super::convert::FromU8;
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub enum Blink {
@@ -12,7 +13,8 @@ pub enum Blink {
 
 impl Blink {
     #[must_use]
-    pub fn as_str(&self) -> &str {
+    #[inline]
+    pub const fn as_str(&self) -> &str {
         use Blink::{Fast, None, Slow, Unset};
 
         match self {
@@ -24,12 +26,14 @@ impl Blink {
     }
 
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    #[inline]
+    pub const fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
 }
 
 impl FromU8 for Blink {
+    #[inline]
     fn from_u8(value: u8) -> Self {
         use Blink::{Fast, None, Slow, Unset};
 
@@ -46,6 +50,7 @@ impl FromU8 for Blink {
 impl Add for Blink {
     type Output = Blink;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         use Blink::{None, Unset};
 
@@ -61,6 +66,7 @@ impl Add for Blink {
 impl Sub for Blink {
     type Output = Blink;
 
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         use Blink::None;
 
@@ -75,6 +81,7 @@ impl Sub for Blink {
 impl Not for Blink {
     type Output = Blink;
 
+    #[inline]
     fn not(self) -> Self::Output {
         use Blink::{Fast, None, Slow, Unset};
 

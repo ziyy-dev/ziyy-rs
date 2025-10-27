@@ -1,22 +1,28 @@
 #![warn(rustdoc::private_intra_doc_links)]
 #![warn(unconditional_panic)]
 #![warn(clippy::pedantic)]
-#![doc = include_str!("../../README.md")]
-#[doc(hidden)]
-pub use crate::document::{Document, NodeId, NodeMut, NodeRef};
-pub use crate::error::{Error, ErrorKind};
-pub use crate::parser::{Chunk, Context, Parser, Tag, TagKind, TagName};
-pub use crate::scanner::position::Position;
-pub use crate::scanner::span::Span;
-pub use crate::style::*;
-use num::{str_to_u32, str_to_u8};
+#![doc = include_str!("../../../README.md")]
 
-mod document;
+pub use context::Context;
+pub use document::Document;
+pub use error::{Error, ErrorKind, Result};
+pub use parser::{Chunk, Tag, TagKind, TagName};
+pub use renderer::Renderer;
+pub use shared::{Position, Span, Value};
+
+#[macro_use]
+mod macros;
+
+mod builtins;
+mod context;
+pub mod document;
 mod error;
 mod num;
-mod parser;
+pub mod parser;
+pub mod renderer;
 mod scanner;
-mod style;
+mod shared;
+pub mod style;
 
 /// Styles the given text using ziyy.
 ///
@@ -32,10 +38,9 @@ mod style;
 ///
 /// This function will panic if the parser encounters an error while parsing the input source.
 #[must_use]
-pub fn style(text: &str) -> String {
-    let mut parser = Parser::new();
-
-    match parser.parse(Context::new(text, None)) {
+#[inline]
+pub fn style(text: &str) -> std::string::String {
+    match try_style(text) {
         Ok(s) => s,
         Err(e) => panic!("{e}"),
     }
@@ -51,27 +56,19 @@ pub fn style(text: &str) -> String {
 /// use ziyy::try_style;
 ///
 /// let styled_text = try_style(r#"
-/// <let id="custom" c="blue">
-///     This is a custom element.
-/// </let>
-/// <span class='s custom'>This text is in blue</span>"#)?;
+/// <span s c='blue'>This text is in blue"#)?;
 /// # Ok(())
 /// # }
-pub fn try_style(text: &str) -> Result<'_, String> {
-    let mut parser = Parser::new();
-    parser.parse(Context::new(text, None))
-}
-
-#[doc(hidden)]
 #[must_use]
-pub fn document(text: &str) -> Document<'_> {
-    let mut parser = Parser::new();
-
-    match parser.parse_to_doc(Context::new(text, None)) {
-        Ok(s) => s,
-        Err(e) => panic!("{e}"),
-    }
+#[inline]
+pub fn try_style(text: &str) -> Result<'_, str, std::string::String> {
+    let mut renderer = Renderer::new(());
+    renderer.render(text)
 }
 
-/// Result
-pub type Result<'src, T> = std::result::Result<T, Error<'src>>;
+#[must_use]
+#[inline]
+pub fn render_to_doc(text: &str) -> Document<'_, str> {
+    let mut renderer = Renderer::new(());
+    renderer.render_to_doc(text).unwrap()
+}

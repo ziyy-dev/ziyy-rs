@@ -1,221 +1,404 @@
-use crate::document::Document;
-use crate::error::ErrorKind;
-use crate::scanner::is_whitespace;
-use crate::scanner::token::Token;
-use crate::scanner::token::TokenKind;
-use crate::scanner::Scanner;
-use crate::style::Style;
-use crate::Error;
-use builtins::BUILTIN_STYLES;
-pub use parse_chunk::Chunk;
-use state::State;
-use std::collections::HashMap;
-use std::mem::take;
-pub use tag::{Tag, TagKind, TagName};
+use std::marker::PhantomData;
 
-mod builtins;
-mod close_tag;
-mod helpers;
-mod open_and_close_tag;
-mod open_tag;
-mod parse_chunk;
-mod state;
+use crate::builtins::is_builtin_tag;
+use crate::context::Context;
+use crate::error::Error;
+use crate::error::ErrorKind;
+use crate::error::Result;
+use crate::scanner::{Scanner, Token, TokenKind};
+use crate::shared::Input;
+use crate::shared::Value;
+use crate::style::{
+    Ansi256, Blink, Color, Delete, FontStyle, Hide, Intensity, Invert, Rgb, Style, Underline,
+};
+
+pub use chunk::Chunk;
+pub use tag::{Tag, TagKind, TagName};
+use TokenKind::{
+    A, B, BLACK, BLUE, BR, C, CLASS, CODE, CURLY, CYAN, D, DASHED, DIV, DOTTED, DOUBLE, FIXED,
+    GREAT, GREEN, H, HREF, I, ID, IDENTIFIER, INDENT, K, LET, MAGENTA, N, NONE, P, PRE, R, RED,
+    RGB, S, SINGLE, SPAN, U, UU, WHITE, X, YELLOW, ZIYY,
+};
+
+mod chunk;
+#[macro_use]
 mod tag;
 
-pub struct Context<'src> {
-    /// The scanner used to tokenize the input source.
-    pub(crate) scanner: Scanner<'src>,
-    /// Optional bindings for styles.
-    pub(crate) bindings: Option<HashMap<&'src str, Style>>,
-    /// The current state of the parser.
-    pub(crate) state: State<'src>,
-    /// The next chunk to be parsed.
-    pub(crate) next_chunk: Option<Chunk<'src>>,
-}
-
-impl<'src> Context<'src> {
-    #[must_use]
-    pub fn new(source: &'src str, bindings: Option<HashMap<&'src str, Style>>) -> Self {
-        Self {
-            scanner: Scanner::new(source),
-            bindings,
-            state: State::new(),
-            next_chunk: None,
-        }
-    }
-}
-
 /// A parser for the Ziyy language.
-pub struct Parser {
-    /// A buffer to store the parsed output.
-    pub(crate) buf: String,
-    /// Flag to indicate whether to skip white space.
-    pub(crate) skip_ws: bool,
-    /// Flag to indicate whether to style the text exactly as it is.
-    pub(crate) pre_ws: i16,
-    /// The last written printable element.
-    pub(crate) block_start: bool,
+pub struct Parser<I: ?Sized + Input> {
+    phantom: PhantomData<I>,
 }
 
-impl Default for Parser {
+impl<I: ?Sized + Input> Default for Parser<I> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'src> Parser {
+impl<'src, I: ?Sized + Input> Parser<I> {
     /// Creates a new Ziyy Parser.
-    ///
-    /// # Arguments
-    ///
-    /// * `source` - The source input to be parsed.
-    /// * `bindings` - Optional bindings for styles.
-    ///
-    /// # Returns
-    ///
-    /// A new instance of `Parser`.
     #[must_use]
-    pub fn new() -> Parser {
+    pub fn new() -> Self {
         Parser {
-            buf: String::new(),
-            skip_ws: true,
-            pre_ws: 1,
-            block_start: true,
+            phantom: PhantomData,
         }
     }
 
-    /// Parses source and Returns a [String].
-    /// # Errors
-    ///
-    /// Returns an `Error` if parsing fails.
-    pub fn parse(&mut self, mut ctx: Context<'src>) -> Result<String, Error<'src>> {
+    #[allow(clippy::too_many_lines)]
+    pub fn parse(ctx: &mut Context<'src, I>) -> Result<'src, I, Chunk<'src, I>> {
+        if let Some(chunk) = ctx.next_chunk.clone() {
+            ctx.next_chunk = None;
+            return Ok(chunk);
+        }
+
+        let token = ctx.scanner.scan_token()?;
+        let kind = match token.kind {
+            TokenKind::LESS => TagKind::Open,
+            TokenKind::LESS_SLASH => TagKind::Close,
+
+            _ => {
+                return match token.kind {
+                    TokenKind::COMMENT => Ok(Chunk::Comment(token.content, token.span)),
+                    TokenKind::TEXT => Ok(Chunk::Text(token.content, token.span)),
+                    TokenKind::WHITESPACE => Ok(Chunk::WhiteSpace(token.content, token.span)),
+                    TokenKind::ESCAPED => Ok(Chunk::Text(
+                        &token.content[3..token.content.as_ref().len() - 4],
+                        token.span,
+                    )),
+                    TokenKind::EOF => Ok(Chunk::Eof(token.span)),
+                    TokenKind::ESC_0 => char_from_u32!(&token.content[2..], 8, &token),
+                    TokenKind::ESC_X | TokenKind::ESC_U => {
+                        char_from_u32!(&token.content[2..], 16, &token)
+                    }
+                    TokenKind::ESC_A => Ok(Chunk::Escape(7 as char, token.span)),
+                    TokenKind::ESC_B => Ok(Chunk::Escape(8 as char, token.span)),
+                    TokenKind::ESC_T => Ok(Chunk::Escape(9 as char, token.span)),
+                    TokenKind::ESC_N => Ok(Chunk::Escape(10 as char, token.span)),
+                    TokenKind::ESC_V => Ok(Chunk::Escape(11 as char, token.span)),
+                    TokenKind::ESC_F => Ok(Chunk::Escape(12 as char, token.span)),
+                    TokenKind::ESC_R => Ok(Chunk::Escape(13 as char, token.span)),
+                    TokenKind::ESC_E => Ok(Chunk::Escape(27 as char, token.span)),
+                    TokenKind::ESC_BACK_SLASH => Ok(Chunk::Escape('\\', token.span)),
+                    TokenKind::ESC_LESS => Ok(Chunk::Escape('<', token.span)),
+                    TokenKind::ESC_GREAT => Ok(Chunk::Escape('>', token.span)),
+
+                    TokenKind::ANSI => Ok(Chunk::Tag(Tag::parse_from_ansi(
+                        &token.content[2..token.content.as_ref().len() - 1],
+                        token.span,
+                    ))),
+                    TokenKind::ANSI_ESC => Ok(Chunk::Tag(Tag::parse_from_ansi(
+                        &token.content[5..token.content.as_ref().len() - 1],
+                        token.span,
+                    ))),
+
+                    _ => Err(Error::new(
+                        ErrorKind::UnexpectedToken {
+                            expected: token.kind,
+                            found: None,
+                        },
+                        &token,
+                    )),
+                };
+            }
+        };
+
+        let token = ctx.scanner.scan_token()?;
+
+        let mut style = Style::new();
+        let tag_name = match token.kind {
+            GREAT if kind == TagKind::Open => {
+                return Ok(Chunk::Tag(Tag::new(TagName::Empty, kind)));
+            }
+
+            GREAT if kind == TagKind::Close => {
+                return Ok(Chunk::Tag(Tag::new(TagName::Empty, kind)));
+            }
+            _ => match_tag_name(&token)?,
+        };
+
+        let mut tag = Tag::new(tag_name.clone(), kind);
+        tag.span = token.span;
+
+        let mut token = ctx.scanner.scan_token()?;
+        tag.span += token.span;
+
+        macro_rules! assign_effect {
+            ($setter:tt, $v:expr) => {{
+                style.$setter($v);
+
+                token = ctx.scanner.scan_token()?;
+                tag.span += token.span;
+                if token.kind == TokenKind::EQUAL {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    expect_token(&token, TokenKind::STRING)?;
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                }
+            }};
+        }
+
+        macro_rules! assign_color {
+            ($setter:tt) => {{
+                token = ctx.scanner.scan_token()?;
+                tag.span += token.span;
+                if token.kind == TokenKind::EQUAL {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    expect_token(&token, TokenKind::STRING)?;
+
+                    let end = token.content.as_ref().len() - 1;
+                    let color = Color::parse(&token.content[1..end], token.span)?;
+                    style.$setter(color);
+                    token = ctx.scanner.scan_token()?;
+                }
+            }};
+        }
+
+        macro_rules! assign_prop_value {
+            ( $prop:tt ) => {{
+                tag.$prop = Value::Bool;
+
+                token = ctx.scanner.scan_token()?;
+                tag.span += token.span;
+                if token.kind == TokenKind::EQUAL {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    expect_token(&token, TokenKind::STRING)?;
+                    let end = token.content.as_ref().len() - 1;
+                    tag.$prop = Value::Some(&token.content[1..end]);
+                    token = ctx.scanner.scan_token()?;
+                }
+            }};
+        }
+
+        macro_rules! consume_declaration {
+            () => {{
+                token = ctx.scanner.scan_token()?;
+                tag.span += token.span;
+                if token.kind == TokenKind::EQUAL {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    expect_token(&token, TokenKind::STRING)?;
+                    token = ctx.scanner.scan_token()?;
+                }
+            }};
+        }
         loop {
-            let parsed = Parser::parse_chunk(&mut ctx)?;
-            match parsed {
-                Chunk::Comment(_, _) => {}
-                Chunk::Escape(ch, _) => {
-                    self.buf.push(ch);
-                    self.skip_ws = is_whitespace(ch);
-                    self.block_start = self.skip_ws;
+            match token.kind {
+                // styles
+                B => {
+                    assign_effect!(set_intensity, Intensity::Bold);
                 }
-
-                Chunk::Tag(tag) => match tag.kind {
-                    TagKind::Open => self.parse_open_tag(&mut ctx, tag)?,
-                    TagKind::Close => self.parse_close_tag(&mut ctx, &tag)?,
-                    TagKind::SelfClose => self.parse_open_and_close_tag(&mut ctx, &tag)?,
-                },
-
-                Chunk::Text(text, _) => {
-                    self.buf.push_str(text);
-                    self.skip_ws = false;
-                    self.block_start = false;
+                D => {
+                    assign_effect!(set_intensity, Intensity::Dim);
                 }
-
-                Chunk::WhiteSpace(ws, _) => {
-                    let chunk = Parser::parse_next_chunk(&mut ctx)?;
-                    if self.pre_ws > 0 {
-                        self.buf.push_str(ws);
-                    } else if let Chunk::Eof(_) = chunk {
-                        if ws.contains('\n') {
-                            self.buf.push('\n');
-                        }
-                    } else if !self.skip_ws {
-                        self.buf.push(' ');
-                        self.skip_ws = true;
+                I => {
+                    assign_effect!(set_font_style, FontStyle::Italics);
+                }
+                U => {
+                    assign_effect!(set_underline, Underline::Single);
+                }
+                K => {
+                    assign_effect!(set_blink, Blink::Slow);
+                }
+                R => {
+                    assign_effect!(set_invert, Invert::Set);
+                }
+                H => {
+                    assign_effect!(set_hide, Hide::Set);
+                }
+                S => {
+                    assign_effect!(set_delete, Delete::Set);
+                }
+                UU => {
+                    assign_effect!(set_underline, Underline::Double);
+                }
+                DOUBLE => {
+                    if tag_name == TagName::U {
+                        assign_effect!(set_underline, Underline::Double);
+                    } else {
+                        consume_declaration!();
                     }
                 }
 
-                Chunk::Eof(_) => {
-                    return Ok(take(&mut self.buf));
+                // colors
+                C => {
+                    assign_color!(set_fg_color);
                 }
+                X => {
+                    assign_color!(set_bg_color);
+                }
+                BLACK | BLUE | CYAN | GREEN | MAGENTA | RED | WHITE | YELLOW => {
+                    let color = Color::parse(token.content, token.span)?;
+                    if tag_name == TagName::C {
+                        style.set_fg_color(color);
+                    } else if tag_name == TagName::X {
+                        style.set_bg_color(color);
+                    }
+
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    if token.kind == TokenKind::EQUAL {
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
+                        expect_token(&token, TokenKind::STRING)?;
+                    }
+                }
+                FIXED => {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    if token.kind == TokenKind::EQUAL {
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
+                        expect_token(&token, TokenKind::STRING)?;
+                    }
+
+                    let end = token.content.as_ref().len() - 1;
+                    let s = &token.content[1..end];
+
+                    let mut scanner = Scanner::new(s);
+                    scanner.text_mode = false;
+                    scanner.parse_hex = true;
+                    scanner.current_pos = token.span.start; // FIXME: add 1 to start position
+
+                    let tok = scanner.scan_token()?;
+                    let color = Color::Ansi256(Ansi256(number!(tok.content, 10, &tok)));
+
+                    if tag_name == TagName::C {
+                        style.set_fg_color(color);
+                    } else if tag_name == TagName::X {
+                        style.set_bg_color(color);
+                    }
+                    token = ctx.scanner.scan_token()?;
+                }
+                RGB => {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    if token.kind == TokenKind::EQUAL {
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
+                        expect_token(&token, TokenKind::STRING)?;
+                    }
+
+                    let end = token.content.as_ref().len() - 1;
+                    let s = &token.content[1..end];
+
+                    let mut scanner = Scanner::new(s);
+                    scanner.text_mode = false;
+                    scanner.parse_hex = true;
+                    scanner.current_pos = token.span.start; // TODO: add 1 to start position
+
+                    let color = Color::Rgb(Rgb::parse(&mut scanner)?);
+
+                    if tag_name == TagName::C {
+                        style.set_fg_color(color);
+                    } else if tag_name == TagName::X {
+                        style.set_bg_color(color);
+                    }
+                    token = ctx.scanner.scan_token()?;
+                }
+
+                // custom
+                N => {
+                    // number of newlines to insert
+                    if tag_name == TagName::Br {
+                        assign_prop_value!(custom);
+                    } else {
+                        consume_declaration!();
+                    }
+                }
+                HREF => {
+                    // url of link
+                    if tag_name == TagName::A {
+                        assign_prop_value!(custom);
+                    } else {
+                        consume_declaration!();
+                    }
+                }
+                ID => {
+                    // name of binding to declare
+                    if tag_name == TagName::Let {
+                        {
+                            tag.custom = Value::Bool;
+                            token = ctx.scanner.scan_token()?;
+                            tag.span += token.span;
+                            if token.kind == TokenKind::EQUAL {
+                                token = ctx.scanner.scan_token()?;
+                                tag.span += token.span;
+                                expect_token(&token, TokenKind::STRING)?;
+                                let end = token.content.as_ref().len() - 1;
+                                let s = &token.content[1..end];
+                                if is_builtin_tag(s) {
+                                    return Err(Error {
+                                        kind: ErrorKind::BuiltinTagOverwrite(s),
+                                        span: token.span,
+                                    });
+                                }
+                                tag.custom = Value::Some(s);
+                                token = ctx.scanner.scan_token()?;
+                            }
+                        };
+                    } else {
+                        consume_declaration!();
+                    }
+                }
+                INDENT => {
+                    // number of spaces to insert before a paragraph/ a tab if Value::Bool
+                    if tag_name == TagName::P {
+                        assign_prop_value!(custom);
+                    } else {
+                        consume_declaration!();
+                    }
+                }
+
+                // inherit properties from binding with name
+                CLASS => assign_prop_value!(class),
+
+                // ignore unknown properties
+                IDENTIFIER => {
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+                    if token.kind == TokenKind::EQUAL {
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
+                        expect_token(&token, TokenKind::STRING)?;
+
+                        token = ctx.scanner.scan_token()?;
+                        tag.span += token.span;
+                    }
+                }
+
+                _ => break,
             }
         }
-    }
 
-    /// Parses the source and returns a `Vec<u8>`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an [Error] if parsing fails.
-    pub fn parse_to_bytes(&mut self, ctx: Context<'src>) -> Result<Vec<u8>, Error<'src>> {
-        match self.parse(ctx) {
-            Ok(res) => Ok(res.into_bytes()),
-            Err(err) => Err(err),
-        }
-    }
+        tag.style = style;
 
-    pub fn parse_to_doc(&mut self, mut ctx: Context<'src>) -> Result<Document<'src>, Error<'src>> {
-        let mut doc = Document::new();
-        let mut id = doc.root().id();
+        match token.kind {
+            TokenKind::GREAT => {}
+            TokenKind::SLASH_GREAT if tag.kind == TagKind::Open => {
+                tag.kind = TagKind::SelfClose;
+            }
 
-        loop {
-            let parsed = Parser::parse_chunk(&mut ctx)?;
-            match &parsed {
-                chunk @ Chunk::Tag(tag) => match tag.kind {
-                    TagKind::Open => {
-                        let mut node = doc.get_mut(id).unwrap();
-                        let child = node.append(chunk.clone());
-                        id = child.id();
-                    }
-                    TagKind::Close => {
-                        let mut node = doc.get_mut(id).unwrap();
-                        node.append(chunk.clone());
-                        id = node.parent().unwrap().id();
-                    }
-                    TagKind::SelfClose => {
-                        let mut node = doc.get_mut(id).unwrap();
-                        node.append(chunk.clone());
-                    }
-                },
-
-                Chunk::Eof(_) => return Ok(doc),
-
-                chunk => {
-                    let mut node = doc.get_mut(id).unwrap();
-                    node.append(chunk.clone());
-                }
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::UnexpectedToken {
+                        expected: token.kind,
+                        found: None,
+                    },
+                    &token,
+                ));
             }
         }
+
+        Ok(Chunk::Tag(tag))
     }
 
-    /// Checks if the given tag matches the expected tag name.
-    ///
-    /// # Arguments
-    ///
-    /// * `tag` - The tag to be checked.
-    /// * `to_be` - The expected tag name.
-    /// * `err` - The error kind to be returned if the tag does not match.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(())` if the tag matches, otherwise returns an `Error`.
-    fn expect_tag(
-        tag: &Tag<'src>,
-        to_be: &TagName<'src>,
-        err: ErrorKind<'src>,
-    ) -> Result<(), Error<'src>> {
-        if tag.name == *to_be {
-            Ok(())
-        } else {
-            Err(Error {
-                kind: err,
-                span: tag.span,
-            })
-        }
-    }
-
-    /// Writes the style to the buffer and saves the current style state.
-    ///
-    /// # Arguments
-    ///
-    /// * `tag_name` - The name of the tag.
-    /// * `style` - The style to be written and saved.
-    fn write_and_save(&mut self, ctx: &mut Context<'src>, tag_name: &TagName<'src>, style: Style) {
-        let prev = ctx.state.previous_style();
-        let new = prev + style;
-        let delta = style - prev;
-        self.buf.push_str(&delta.to_string2());
-        ctx.state.push(tag_name.clone(), new, delta);
+    pub fn parse_next(ctx: &mut Context<'src, I>) -> Result<'src, I, Chunk<'src, I>> {
+        let chunk = Parser::parse(ctx)?;
+        ctx.next_chunk = Some(chunk.clone());
+        Ok(chunk)
     }
 }
 
@@ -229,7 +412,10 @@ impl<'src> Parser {
 /// # Returns
 ///
 /// Returns `Ok(())` if the token matches, otherwise returns an `Error`.
-fn expect_token<'src>(token: &Token<'src>, tt: TokenKind) -> Result<(), Error<'src>> {
+fn expect_token<'src, I: ?Sized + Input>(
+    token: &Token<'src, I>,
+    tt: TokenKind,
+) -> Result<'src, I, ()> {
     if token.kind != tt {
         return Err(Error::new(
             ErrorKind::UnexpectedToken {
@@ -242,7 +428,46 @@ fn expect_token<'src>(token: &Token<'src>, tt: TokenKind) -> Result<(), Error<'s
     Ok(())
 }
 
-#[cfg(test)]
+pub(crate) fn match_tag_name<'src, I: ?Sized + Input>(
+    token: &Token<'src, I>,
+) -> Result<'src, I, TagName<'src, I>> {
+    let kind = match token.kind {
+        A => TagName::A,
+        B => TagName::B,
+        BR => TagName::Br,
+        C => TagName::C,
+        CODE => TagName::Code,
+        D => TagName::D,
+        DIV => TagName::Div,
+        H => TagName::H,
+        I => TagName::I,
+        K => TagName::K,
+        LET => TagName::Let,
+        P => TagName::P,
+        PRE => TagName::Pre,
+        R => TagName::R,
+        S => TagName::S,
+        SPAN => TagName::Span,
+        U => TagName::U,
+        X => TagName::X,
+        ZIYY => TagName::Ziyy,
+
+        IDENTIFIER | BLACK | BLUE | CYAN | GREEN | MAGENTA | RED | WHITE | YELLOW | FIXED | RGB
+        | CLASS | CURLY | DASHED | DOUBLE | DOTTED | ID | INDENT | HREF | N | NONE | SINGLE => {
+            TagName::Any(token.content)
+        }
+        _ => {
+            return Err(Error {
+                kind: ErrorKind::InvalidTagName(token.content),
+                span: token.span,
+            })
+        }
+    };
+
+    Ok(kind)
+}
+
+/* #[cfg(test)]
 mod tests {
     use crate::scanner::span::Span;
 
@@ -328,3 +553,4 @@ mod tests {
         assert!(result.is_err());
     }
 }
+ */

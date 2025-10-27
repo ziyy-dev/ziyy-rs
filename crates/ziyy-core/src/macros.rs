@@ -1,52 +1,59 @@
-#[macro_export]
-#[doc(hidden)]
 macro_rules! get_num {
     ( $kind:expr, $token:expr ) => {
-        $kind.map_err(|k| Error::<'src>::new(k, $token))?
+        $kind.map_err(|k| $crate::error::Error::<'src>::new(k, $token))?
     };
 }
 
-#[macro_export]
-#[doc(hidden)]
 macro_rules! get_num2 {
     ( $kind:expr, $tag:expr ) => {
-        $kind.map_err(|k| Error {
+        $kind.map_err(|k| $crate::error::Error {
             kind: k,
             span: $tag.span,
         })?
     };
 }
 
-#[macro_export]
-#[doc(hidden)]
 macro_rules! char_from_u32 {
     ( $text:expr, $radix:expr, $token:expr ) => {{
-        let num = $crate::get_num!($crate::str_to_u32($text, $radix), $token);
+        let num = get_num!($crate::num::input_to_u32($text, $radix), $token);
         let unicode = char::from_u32(num);
         if let Some(ch) = unicode {
-            Ok(Chunk::Escape(ch, $token.span))
+            Ok($crate::parser::Chunk::Escape(ch, $token.span))
         } else {
-            Ok(Chunk::Escape(char::REPLACEMENT_CHARACTER, $token.span))
+            Ok($crate::parser::Chunk::Escape(
+                char::REPLACEMENT_CHARACTER,
+                $token.span,
+            ))
         }
     }};
 }
 
-#[macro_export]
-#[doc(hidden)]
 macro_rules! number {
     ( $text:expr, $radix:expr, $token:expr ) => {
         match $token.kind {
-            TokenKind::NUMBER => $crate::get_num!($crate::str_to_u8($text, $radix), $token) as u8,
+            $crate::scanner::TokenKind::NUMBER => {
+                get_num!($crate::num::input_to_u8($text, $radix), $token) as u8
+            }
             _ => {
-                return Err(Error::new(
-                    ErrorKind::UnexpectedToken {
-                        expected: TokenKind::NUMBER,
+                return Err($crate::error::Error::new(
+                    $crate::error::ErrorKind::UnexpectedToken {
+                        expected: $crate::scanner::TokenKind::NUMBER,
                         found: Some($token.content),
                     },
                     $token,
                 ));
             }
         }
+    };
+}
+
+macro_rules! t {
+    ( !$x:expr ) => {
+        $x == 0
+    };
+
+    ( $x:expr ) => {
+        $x >= 1
     };
 }
 

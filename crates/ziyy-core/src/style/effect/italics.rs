@@ -1,5 +1,6 @@
-use super::super::convert::FromU8;
 use std::ops::{Add, Not, Sub};
+
+use super::super::convert::FromU8;
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub enum FontStyle {
@@ -12,7 +13,8 @@ pub enum FontStyle {
 
 impl FontStyle {
     #[must_use]
-    pub fn as_str(&self) -> &str {
+    #[inline]
+    pub const fn as_str(&self) -> &str {
         use FontStyle::{Fraktur, Italics, None, Unset};
 
         match self {
@@ -24,12 +26,14 @@ impl FontStyle {
     }
 
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    #[inline]
+    pub const fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
 }
 
 impl FromU8 for FontStyle {
+    #[inline]
     fn from_u8(value: u8) -> Self {
         use FontStyle::{Fraktur, Italics, None, Unset};
 
@@ -46,6 +50,7 @@ impl FromU8 for FontStyle {
 impl Add for FontStyle {
     type Output = FontStyle;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         use FontStyle::{None, Unset};
 
@@ -61,6 +66,7 @@ impl Add for FontStyle {
 impl Sub for FontStyle {
     type Output = FontStyle;
 
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         use FontStyle::None;
 
@@ -75,6 +81,7 @@ impl Sub for FontStyle {
 impl Not for FontStyle {
     type Output = FontStyle;
 
+    #[inline]
     fn not(self) -> Self::Output {
         use FontStyle::{Fraktur, Italics, None, Unset};
 

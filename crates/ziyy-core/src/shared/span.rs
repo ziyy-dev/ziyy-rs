@@ -1,7 +1,5 @@
-use std::{
-    fmt::Display,
-    ops::{Add, AddAssign},
-};
+use std::fmt::Display;
+use std::ops::{Add, AddAssign};
 
 use super::position::Position;
 
@@ -18,6 +16,13 @@ impl Span {
     }
 
     pub(crate) const fn initial() -> Self {
+        Self {
+            start: Position { row: 1, col: 1 },
+            end: Position { row: 1, col: 1 },
+        }
+    }
+
+    pub(crate) const fn inserted() -> Self {
         Self {
             start: Position { row: 0, col: 0 },
             end: Position { row: 0, col: 0 },
@@ -47,6 +52,10 @@ impl AddAssign<Position> for Span {
 
 impl Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(":{}", self.start))
+        if *self == Span::inserted() {
+            f.write_str("inserted")
+        } else {
+            f.write_fmt(format_args!(":{}", self.start))
+        }
     }
 }
