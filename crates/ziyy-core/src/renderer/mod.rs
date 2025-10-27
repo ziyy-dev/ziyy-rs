@@ -5,7 +5,8 @@ use std::marker::PhantomData;
 use smallvec::{smallvec, SmallVec};
 
 use crate::context::Context;
-use crate::document::Document;
+#[cfg(feature = "tree")]
+use crate::tree::Document;
 use crate::error::Result;
 use crate::parser::{Chunk, Parser, TagKind, TagName};
 use crate::scanner::is_whitespace;
@@ -95,6 +96,7 @@ impl<I: ?Sized + Input, O> Renderer<I, O> {
         }
     }
 
+    #[cfg(feature = "tree")]
     pub fn render_to_doc<'src>(&mut self, input: &'src I) -> Result<'src, I, Document<'src, I>> {
         let mut ctx = Context::new(input, None);
         let mut doc = Document::new();

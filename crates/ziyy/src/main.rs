@@ -5,6 +5,7 @@ use std::io::{stdin, stdout, BufReader, Read, Write};
 use std::path::Path;
 use std::process::exit;
 use ziyy::{zprint, Error, Renderer};
+#[cfg(feature = "tree")]
 use ziyy_core::render_to_doc;
 
 mod arg;
@@ -105,6 +106,7 @@ fn main() {
 fn parse_to_out(source: &str, out: &mut impl Write, options: Options) {
     let mut f = || {
         if options.tree {
+            #[cfg(feature = "tree")]
             let _ = out.write(render_to_doc(source).to_string().as_bytes());
         } else {
             match options.escape_only {

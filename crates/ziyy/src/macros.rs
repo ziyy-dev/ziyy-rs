@@ -43,8 +43,8 @@
 /// ```
 #[macro_export]
 macro_rules! zformat {
-    ($s:tt $($arg:tt)*) => {
-        ::std::format!($crate::zstr!($s) $($arg)*)
+    ($($arg:tt)*) => {
+        $crate::__style!(format $($arg)*)
     };
 }
 
@@ -90,24 +90,24 @@ macro_rules! zformat {
 /// ```
 /// use std::io::{self, Write};
 ///
-/// print!("this ");
-/// print!("will ");
-/// print!("be ");
-/// print!("on ");
-/// print!("the ");
-/// print!("same ");
-/// print!("line ");
+/// zprint!("this ");
+/// zprint!("will ");
+/// zprint!("be ");
+/// zprint!("on ");
+/// zprint!("the ");
+/// zprint!("same ");
+/// zprint!("line ");
 ///
 /// io::stdout().flush().unwrap();
 ///
-/// print!("this string has a newline, why not choose println! instead?\n");
+/// zprint!("this string has a newline, why not choose println! instead?\n");
 ///
 /// io::stdout().flush().unwrap();
 /// ```
 #[macro_export]
 macro_rules! zprint {
-    ($s:tt $($arg:tt)*) => {
-        ::std::print!($crate::zstr!($s) $($arg)*)
+    ($($arg:tt)*) => {
+        $crate::__style!(print $($arg)*)
     };
 }
 
@@ -119,7 +119,7 @@ macro_rules! zprint {
 /// This macro uses the same syntax as [`zformat!`], but writes to the standard output instead.
 /// See [`std::fmt`] for more information.
 ///
-/// The `println!` macro will lock the standard output on each call. If you call
+/// The `zprintln!` macro will lock the standard output on each call. If you call
 /// `println!` within a hot loop, this behavior may be the bottleneck of the loop.
 /// To avoid this, lock stdout with [`io::stdout().lock()`][lock]:
 /// ```
@@ -129,7 +129,7 @@ macro_rules! zprint {
 /// writeln!(lock, "hello world").unwrap();
 /// ```
 ///
-/// Use `println!` only for the primary output of your program. Use
+/// Use `zprintln!` only for the primary output of your program. Use
 /// [`zeprintln!`] instead to print error and progress messages.
 ///
 /// See the formatting documentation in [`std::fmt`](std::fmt)
@@ -163,8 +163,8 @@ macro_rules! zprintln {
         ::std::println()
     };
 
-    ($s:tt $($arg:tt)*) => {
-        ::std::println!($crate::zstr!($s) $($arg)*)
+    ($($arg:tt)*) => {
+        $crate::__style!(println $($arg)*)
     };
 }
 
@@ -197,8 +197,8 @@ macro_rules! zprintln {
 /// ```
 #[macro_export]
 macro_rules! zeprint {
-    ($s:tt $($arg:tt)*) => {
-        ::std::eprint!($crate::zstr!($s) $($arg)*)
+    ($($arg:tt)*) => {
+        $crate::__style!(eprint $($arg)*)
     };
 }
 
@@ -236,8 +236,8 @@ macro_rules! zeprintln {
         ::std::eprintln()
     };
 
-    ($s:tt $($arg:tt)*) => {
-        ::std::eprintln!($crate::zstr!($s) $($arg)*)
+    ($($arg:tt)*) => {
+        $crate::__style!(eprintln $($arg)*)
     };
 }
 
@@ -265,15 +265,15 @@ macro_rules! zeprintln {
 ///
 /// fn main() -> std::io::Result<()> {
 ///     let mut w = Vec::new();
-///     write!(&mut w, "test")?;
-///     write!(&mut w, "formatted {}", "arguments")?;
+///     zwrite!(&mut w, "test")?;
+///     zwrite!(&mut w, "formatted {}", "arguments")?;
 ///
 ///     assert_eq!(w, b"testformatted arguments");
 ///     Ok(())
 /// }
 /// ```
 ///
-/// A module can import both `std::fmt::Write` and `std::io::Write` and call `write!` on objects
+/// A module can import both `std::fmt::Write` and `std::io::Write` and call `zwrite!` on objects
 /// implementing either, as objects do not typically implement both. However, the module must
 /// avoid conflict between the trait names, such as by importing them as `_` or otherwise renaming
 /// them:
@@ -286,8 +286,8 @@ macro_rules! zeprintln {
 ///     let mut s = String::new();
 ///     let mut v = Vec::new();
 ///
-///     write!(&mut s, "{} {}", "abc", 123)?; // uses fmt::Write::write_fmt
-///     write!(&mut v, "s = {:?}", s)?; // uses io::Write::write_fmt
+///     zwrite!(&mut s, "{} {}", "abc", 123)?; // uses fmt::Write::write_fmt
+///     zwrite!(&mut v, "s = {:?}", s)?; // uses io::Write::write_fmt
 ///     assert_eq!(v, b"s = \"abc 123\"");
 ///     Ok(())
 /// }
@@ -325,12 +325,12 @@ macro_rules! zeprintln {
 /// }
 ///
 /// let mut m = Example{};
-/// write!(&mut m, "Hello World").expect("Not written");
+/// zwrite!(&mut m, "Hello World").expect("Not written");
 /// ```
 #[macro_export]
 macro_rules! zwrite {
-    ($dst:expr, $s:tt $($arg:tt)*) => {
-        ::std::write!($dst, $crate::zstr!($s) $($arg)*)
+    ($dst:expr, $($arg:tt)*) => {
+        $crate::__style!(write $dst, $($arg)*)
     };
 }
 
@@ -339,7 +339,7 @@ macro_rules! zwrite {
 /// On all platforms, the newline is the LINE FEED character (`\n`/`U+000A`) alone
 /// (no additional CARRIAGE RETURN (`\r`/`U+000D`).
 ///
-/// For more information, see [`write!`]. For information on the format string syntax, see
+/// For more information, see [`zwrite!`]. For information on the format string syntax, see
 /// [`std::fmt`].
 ///
 /// [`std::fmt`]: ../std/fmt/index.html
@@ -351,9 +351,9 @@ macro_rules! zwrite {
 ///
 /// fn main() -> Result<()> {
 ///     let mut w = Vec::new();
-///     writeln!(&mut w)?;
-///     writeln!(&mut w, "test")?;
-///     writeln!(&mut w, "formatted {}", "arguments")?;
+///     zwriteln!(&mut w)?;
+///     zwriteln!(&mut w, "test")?;
+///     zwriteln!(&mut w, "formatted {}", "arguments")?;
 ///
 ///     assert_eq!(&w[..], "\ntest\nformatted arguments\n".as_bytes());
 ///     Ok(())
@@ -365,7 +365,33 @@ macro_rules! zwriteln {
         ::std::writeln!($dst)
     };
 
-    ($dst:expr, $s:tt $($arg:tt)*) => {
-        ::std::writeln!($dst, $crate::zstr!($s) $($arg)*)
+    ($dst:expr, $($arg:tt)*) => {
+        $crate::__style!(writeln $dst, $($arg)*)
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+#[cfg(not(feature = "terminfo"))]
+macro_rules! __style {
+    ($name:tt $s:tt $($arg:tt)*) => {
+        ::std::$name!($crate::zstr!($s) $($arg)*)
+    };
+
+    ($name:tt $dst:expr, $s:tt $($arg:tt)*) => {
+        ::std::$name!($dst, $crate::zstr!($s) $($arg)*)
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "terminfo")]
+macro_rules! __style {
+    ($name:tt $($arg:tt)*) => {
+        ::std::$name!("{}", $crate::style(::std::format!($($arg)*)))
+    };
+
+    ($name:tt $dst:expr, $($arg:tt)*) => {
+        ::std::$name!($dst, "{}", $crate::style(::std::format!($($arg)*)))
     };
 }

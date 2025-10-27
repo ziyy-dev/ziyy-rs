@@ -4,7 +4,8 @@
 #![doc = include_str!("../../../README.md")]
 
 pub use context::Context;
-pub use document::Document;
+#[cfg(feature = "tree")]
+pub use tree::Document;
 pub use error::{Error, ErrorKind, Result};
 pub use parser::{Chunk, Tag, TagKind, TagName};
 pub use renderer::Renderer;
@@ -15,7 +16,8 @@ mod macros;
 
 mod builtins;
 mod context;
-pub mod document;
+#[cfg(feature = "tree")]
+pub mod tree;
 mod error;
 mod num;
 pub mod parser;
@@ -68,6 +70,7 @@ pub fn try_style(text: &str) -> Result<'_, str, std::string::String> {
 
 #[must_use]
 #[inline]
+#[cfg(feature = "tree")]
 pub fn render_to_doc(text: &str) -> Document<'_, str> {
     let mut renderer = Renderer::new(());
     renderer.render_to_doc(text).unwrap()
