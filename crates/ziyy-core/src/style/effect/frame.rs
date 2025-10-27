@@ -1,0 +1,94 @@
+use std::ops::{Add, Not, Sub};
+
+use super::super::convert::FromU8;
+
+#[derive(Default, Debug, PartialEq, Clone, Copy)]
+pub enum Frame {
+    #[default]
+    None,
+    Framed,
+    Encircled,
+    Unset,
+}
+
+impl Frame {
+    #[must_use]
+    #[inline]
+    pub const fn as_str(&self) -> &str {
+        use Frame::{Encircled, Framed, None, Unset};
+
+        match self {
+            None => "",
+            Framed => "\x1b[51m",
+            Encircled => "\x1b[52m",
+            Unset => "\x1b[54m",
+        }
+    }
+
+    #[must_use]
+    #[inline]
+    pub const fn as_bytes(&self) -> &[u8] {
+        self.as_str().as_bytes()
+    }
+}
+
+impl FromU8 for Frame {
+    #[inline]
+    fn from_u8(value: u8) -> Self {
+        use Frame::{Encircled, Framed, None, Unset};
+
+        match value {
+            0 => None,
+            1 => Framed,
+            2 => Encircled,
+            3 => Unset,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Add for Frame {
+    type Output = Frame;
+
+    #[inline]
+    fn add(self, rhs: Self) -> Self::Output {
+        use Frame::{None, Unset};
+
+        match (self, rhs) {
+            (None, Unset) => None,
+            (None, rhs) => rhs,
+            (lhs, None) => lhs,
+            (_, rhs) => rhs,
+        }
+    }
+}
+
+impl Sub for Frame {
+    type Output = Frame;
+
+    #[inline]
+    fn sub(self, rhs: Self) -> Self::Output {
+        use Frame::None;
+
+        match (self, rhs) {
+            (None, rhs) => !rhs,
+            (lhs, rhs) if lhs == rhs => None,
+            (lhs, _) => lhs,
+        }
+    }
+}
+
+impl Not for Frame {
+    type Output = Frame;
+
+    #[inline]
+    fn not(self) -> Self::Output {
+        use Frame::{Encircled, Framed, None, Unset};
+
+        match self {
+            Framed => Unset,
+            Encircled => Unset,
+            _ => None,
+        }
+    }
+}
