@@ -1,4 +1,4 @@
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::parser::{Tag, TagName};
@@ -40,6 +40,7 @@ impl<'src, I: ?Sized + Input> State<'src, I> {
                     entry.accum = accum;
                     entry.diff = diff;
                 }
+                // the stack must contain at least the root element
                 None => unreachable!(),
             }
         } else {
@@ -48,7 +49,7 @@ impl<'src, I: ?Sized + Input> State<'src, I> {
         diff
     }
 
-    pub fn pop(&mut self, tag: &Tag<'src, I>) -> Result<'src, I, Style> {
+    pub fn pop_tag(&mut self, tag: &Tag<'src, I>) -> Result<'src, I, Style> {
         let lname = match self.stack.last() {
             Some(entry) => &entry.name,
             None => unreachable!(),
@@ -67,6 +68,13 @@ impl<'src, I: ?Sized + Input> State<'src, I> {
                 },
                 span: tag.span,
             })
+        }
+    }
+
+    pub fn pop(&mut self) -> Option<Style> {
+        match self.stack.pop() {
+            Some(entry) => Some(entry.diff),
+            None => None,
         }
     }
 }

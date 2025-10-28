@@ -13,7 +13,7 @@ impl<O> Renderer<O> {
         ctx: &mut Context<'src, I>,
         tag: &Tag<'src, I>,
     ) -> Result<'src, I, ()> {
-        let diff = ctx.state.pop(tag)?;
+        let diff = ctx.state.pop_tag(tag)?;
 
         self.buf
             .extend_from_slice(&diff.not().to_string2().as_bytes());

@@ -1,10 +1,11 @@
 use crate::error::{Error, ErrorKind, Result};
-use crate::scanner::Scanner;
+use crate::num::input_to_u8;
 use crate::scanner::TokenKind;
+use crate::scanner::{Scanner, Token};
 use crate::shared::Input;
 
-use super::expect;
 use super::ColorKind;
+use super::expect;
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub struct Rgb(pub u8, pub u8, pub u8);
@@ -21,51 +22,48 @@ impl Rgb {
         scanner: &mut Scanner<'src, I>,
     ) -> Result<'src, I, Self> {
         let token = scanner.scan_token()?;
-        let mut r = 0;
-        let mut g = 0;
-        let mut b = 0;
+        let r = number!(token.content, 10, &token);
 
-        match token.kind {
-            TokenKind::NUMBER => {
-                r = number!(token.content, 10, &token);
+        let token = scanner.scan_token()?;
+        expect(&token, TokenKind::COMMA)?;
 
-                let token = scanner.scan_token()?;
-                expect(&token, TokenKind::COMMA)?;
+        let token = scanner.scan_token()?;
+        let g = number!(token.content, 10, &token);
 
-                let token = scanner.scan_token()?;
-                g = number!(token.content, 10, &token);
+        let token = scanner.scan_token()?;
+        expect(&token, TokenKind::COMMA)?;
 
-                let token = scanner.scan_token()?;
-                expect(&token, TokenKind::COMMA)?;
+        let token = scanner.scan_token()?;
+        let b = number!(token.content, 10, &token);
 
-                let token = scanner.scan_token()?;
-                b = number!(token.content, 10, &token);
+        Ok(Rgb(r, g, b))
+    }
+
+    pub(crate) fn parse_hex<'src, I: ?Sized + Input>(
+        token: &Token<'src, I>,
+    ) -> Result<'src, I, Self> {
+        let r;
+        let g;
+        let b;
+
+        match token.content.as_ref().len() {
+            4 => {
+                r = hex!(token.content[1..2].as_ref().repeat(2).as_slice());
+                g = hex!(token.content[2..3].as_ref().repeat(2).as_slice());
+                b = hex!(token.content[3..4].as_ref().repeat(2).as_slice());
             }
 
-            TokenKind::HEX => match token.content.as_ref().len() {
-                4 => {
-                    /* r = number!(&token.content[1..2].repeat(2), 16, &token);
-                    g = number!(&token.content[2..3].repeat(2), 16, &token);
-                    b = number!(&token.content[3..4].repeat(2), 16, &token); */
-                }
-
-                7 => {
-                    r = number!(&token.content[1..3], 16, &token);
-                    g = number!(&token.content[3..5], 16, &token);
-                    b = number!(&token.content[5..7], 16, &token);
-                }
-
-                _ => {}
-            },
+            7 => {
+                r = hex!(&token.content[1..3]);
+                g = hex!(&token.content[3..5]);
+                b = hex!(&token.content[5..7]);
+            }
 
             _ => {
-                return Err(Error::new(
-                    ErrorKind::UnexpectedToken {
-                        expected: TokenKind::NUMBER,
-                        found: Some(token.content),
-                    },
-                    &token,
-                ))
+                return Err(Error {
+                    kind: ErrorKind::InvalidColor(token.content),
+                    span: token.span,
+                });
             }
         }
 

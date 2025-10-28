@@ -1,13 +1,13 @@
 [package]
-categories  = ["command-line-interface", "command-line-utilities"]
-description = "Terminal Styling using HTML-like syntax."
-edition     = "2024"
-keywords    = ["terminal", "ansi", "style", "html", "cli"]
-license     = "MIT OR Apache-2.0"
-name        = "ziyy"
-readme      = "README.md"
-repository  = "https://github.com/ziyy-dev/ziyy-rs.git"
-version     = "2.0.3"
+name                  = "ziyy"
+version               = "2.0.3"
+categories.workspace  = true
+description.workspace = true
+edition.workspace     = true
+keywords.workspace    = true
+license.workspace     = true
+readme.workspace      = true
+repository.workspace  = true
 
 [package.metadata.docs.rs]
 all-features = true
@@ -15,8 +15,7 @@ rustdoc-args = ["--generate-link-to-definition"]
 
 [features]
 bindings = ["ziyy-core/bindings"]
-default  = ["bindings"]
-full     = ["bindings", "tree", "uncommon"]
+default  = ["bindings", "tree"]
 terminfo = ["ziyy-core/terminfo"]
 tree     = ["ziyy-core/tree"]
 uncommon = ["ziyy-core/uncommon"]

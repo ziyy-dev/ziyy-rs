@@ -2,6 +2,7 @@
 #![warn(unconditional_panic)]
 #![warn(clippy::pedantic)]
 #![doc = include_str!("../../../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use context::Context;
 pub use error::{Error, ErrorKind, Result};
@@ -9,6 +10,7 @@ pub use parser::{Chunk, Tag, TagKind, TagName};
 pub use renderer::Renderer;
 pub use shared::{Position, Span, Value};
 #[cfg(feature = "tree")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tree")))]
 pub use tree::Tree;
 
 #[macro_use]
@@ -24,6 +26,7 @@ mod scanner;
 mod shared;
 pub mod style;
 #[cfg(feature = "tree")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tree")))]
 pub mod tree;
 
 /// Styles the given text using ziyy.
@@ -53,7 +56,7 @@ pub fn style(text: &str) -> std::string::String {
 /// # Example
 ///
 /// ```
-/// # fn main() -> ziyy_core::Result<'static, ()> {
+/// # fn main() -> ziyy_core::Result<'static, str, ()> {
 /// # use ziyy_core as ziyy;
 /// use ziyy::try_style;
 ///
@@ -71,6 +74,7 @@ pub fn try_style(text: &str) -> Result<'_, str, std::string::String> {
 #[must_use]
 #[inline]
 #[cfg(feature = "tree")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tree")))]
 pub fn render_to_tree(text: &str) -> Tree<'_, str> {
     let renderer = Renderer::new(Tree::new());
     renderer.render(text).unwrap()

@@ -3,4 +3,4 @@ include = ["Cargo.toml", "crates/**/Cargo.toml", ".cargo/config.toml"]
 [formatting]
 align_entries = true
 column_width = 120
-reorder_keys = true
+reorder_keys = false

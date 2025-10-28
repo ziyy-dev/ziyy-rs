@@ -47,6 +47,15 @@ macro_rules! number {
     };
 }
 
+macro_rules! hex {
+    ($expression:expr) => {
+        match input_to_u8($expression, 16) {
+            Ok(n) => n,
+            Err(_) => unreachable!(),
+        }
+    };
+}
+
 macro_rules! t {
     ( !$x:expr ) => {
         $x == 0

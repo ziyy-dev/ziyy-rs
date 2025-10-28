@@ -1,12 +1,13 @@
 [package]
-categories  = ["command-line-interface", "command-line-utilities"]
-description = "Terminal Styling using HTML-like syntax."
-edition     = "2024"
-keywords    = ["terminal", "ansi", "style", "html", "cli"]
-license     = "MIT OR Apache-2.0"
-name        = "ziyy-core"
-repository  = "https://github.com/ziyy-dev/ziyy-rs.git"
-version     = "0.1.4"
+name                  = "ziyy-core"
+version               = "0.1.4"
+categories.workspace  = true
+description.workspace = true
+edition.workspace     = true
+keywords.workspace    = true
+license.workspace     = true
+readme.workspace      = true
+repository.workspace  = true
 
 [package.metadata.docs.rs]
 all-features = true

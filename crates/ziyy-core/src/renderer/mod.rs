@@ -1,5 +1,6 @@
 use std::fmt;
 use std::io;
+use std::ops::Not;
 
 use smallvec::{SmallVec, smallvec};
 
@@ -7,7 +8,7 @@ use crate::context::Context;
 use crate::error::Result;
 use crate::parser::{Chunk, Parser, TagKind, TagName};
 use crate::scanner::is_whitespace;
-use crate::shared::Input;
+pub use crate::shared::Input;
 use crate::style::Style;
 #[cfg(feature = "tree")]
 use crate::tree::Tree;
@@ -89,6 +90,10 @@ impl<O> Renderer<O> {
                 }
 
                 Chunk::Eof(_) => {
+                    while let Some(diff) = ctx.state.pop() {
+                        self.buf
+                            .extend_from_slice(&diff.not().to_string2().as_bytes());
+                    }
                     return Ok(());
                 }
             }

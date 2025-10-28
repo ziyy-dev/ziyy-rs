@@ -1,9 +1,13 @@
 [package]
-edition  = "2024"
-keywords = ["terminal", "ansi", "style", "html", "cli"]
-license  = "MIT OR Apache-2.0"
-name     = "ziyy-proc"
-version  = "0.1.0"
+name                  = "ziyy-proc"
+version               = "0.1.0"
+categories.workspace  = true
+description.workspace = true
+edition.workspace     = true
+keywords.workspace    = true
+license.workspace     = true
+readme.workspace      = true
+repository.workspace  = true
 
 [lib]
 proc-macro = true

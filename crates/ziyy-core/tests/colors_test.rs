@@ -17,7 +17,7 @@ fn assert_bg_colors_eq(source: &str, color: Color) {
     let node = doc.root().first_child().unwrap();
     let chunk = node.value();
     let Chunk::Tag(tag) = chunk else { panic!() };
-    let other = tag.style.fg_color();
+    let other = tag.style.bg_color();
 
     assert!(other.eq(&color), "expected {color:?} and got {other:?}");
 }

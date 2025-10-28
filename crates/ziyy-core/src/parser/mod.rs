@@ -8,14 +8,15 @@ use crate::error::Result;
 use crate::scanner::{Scanner, Token, TokenKind};
 use crate::shared::Input;
 use crate::shared::Value;
+use crate::style::AnsiColor;
 use crate::style::{
     Ansi256, Blink, Color, Delete, FontStyle, Hide, Intensity, Invert, Rgb, Style, Underline,
 };
 
 use TokenKind::{
     A, B, BLACK, BLUE, BR, C, CLASS, CODE, CURLY, CYAN, D, DASHED, DIV, DOTTED, DOUBLE, FIXED,
-    GREAT, GREEN, H, HREF, I, ID, IDENTIFIER, INDENT, K, LET, MAGENTA, N, NONE, P, PRE, R, RED,
-    RGB, S, SINGLE, SPAN, U, UU, WHITE, X, YELLOW, ZIYY,
+    GREAT, GREEN, H, HEX, HREF, I, ID, IDENTIFIER, INDENT, K, LET, MAGENTA, N, NONE, NUMBER, P,
+    PRE, R, RED, RGB, S, SINGLE, SPAN, U, UU, WHITE, X, YELLOW, ZIYY,
 };
 pub use chunk::Chunk;
 pub use tag::{Tag, TagKind, TagName};
@@ -230,41 +231,70 @@ impl<'src, I: ?Sized + Input> Parser<I> {
                     assign_color!(set_bg_color);
                 }
                 BLACK | BLUE | CYAN | GREEN | MAGENTA | RED | WHITE | YELLOW => {
-                    let color = Color::parse(token.content, token.span)?;
+                    let mut color = Color::parse(token.content, token.span)?;
+
+                    token = ctx.scanner.scan_token()?;
+                    tag.span += token.span;
+
+                    if token.kind == TokenKind::EQUAL {
+                        token = ctx.scanner.scan_token()?;
+                        expect_token(&token, TokenKind::STRING)?;
+                        tag.span += token.span;
+
+                        let end = token.content.as_ref().len() - 1;
+                        let s = &token.content[1..end];
+
+                        let mut scanner = Scanner::new(s);
+                        scanner.text_mode = false;
+                        scanner.current_pos = token.span.start; // TODO: add 1 to start position
+
+                        let tok = scanner.scan_token()?;
+                        expect_token(&tok, TokenKind::LIGHT)?;
+
+                        let ansi = match color {
+                            Color::AnsiColor(ansi) => ansi,
+                            _ => unreachable!(),
+                        };
+
+                        color = Color::AnsiColor(match AnsiColor::try_from(ansi as u8 + 60) {
+                            Ok(ansi) => ansi,
+                            Err(_) => unreachable!(),
+                        });
+
+                        let tok = scanner.scan_token()?;
+                        expect_token(&tok, TokenKind::EOF)?;
+
+                        token = ctx.scanner.scan_token()?
+                    }
+
                     if tag_name == TagName::C {
                         style.set_fg_color(color);
                     } else if tag_name == TagName::X {
                         style.set_bg_color(color);
                     }
-
-                    token = ctx.scanner.scan_token()?;
-                    tag.span += token.span;
-                    if token.kind == TokenKind::EQUAL {
-                        token = ctx.scanner.scan_token()?;
-                        tag.span += token.span;
-                        expect_token(&token, TokenKind::STRING)?;
-                    }
                 }
                 FIXED => {
                     token = ctx.scanner.scan_token()?;
+                    expect_token(&token, TokenKind::EQUAL)?;
                     tag.span += token.span;
-                    if token.kind == TokenKind::EQUAL {
-                        token = ctx.scanner.scan_token()?;
-                        tag.span += token.span;
-                        expect_token(&token, TokenKind::STRING)?;
-                    }
+
+                    token = ctx.scanner.scan_token()?;
+                    expect_token(&token, TokenKind::STRING)?;
+                    tag.span += token.span;
 
                     let end = token.content.as_ref().len() - 1;
                     let s = &token.content[1..end];
 
                     let mut scanner = Scanner::new(s);
                     scanner.text_mode = false;
-                    scanner.parse_hex = true;
                     scanner.current_pos = token.span.start; // FIXME: add 1 to start position
 
                     let tok = scanner.scan_token()?;
                     let color = Color::Ansi256(Ansi256(number!(tok.content, 10, &tok)));
 
+                    let tok = scanner.scan_token()?;
+                    expect_token(&tok, TokenKind::EOF)?;
+
                     if tag_name == TagName::C {
                         style.set_fg_color(color);
                     } else if tag_name == TagName::X {
@@ -272,24 +302,37 @@ impl<'src, I: ?Sized + Input> Parser<I> {
                     }
                     token = ctx.scanner.scan_token()?;
                 }
+                NUMBER => {
+                    let color = Color::Ansi256(Ansi256(number!(token.content, 10, &token)));
+
+                    if tag_name == TagName::C {
+                        style.set_fg_color(color);
+                    } else if tag_name == TagName::X {
+                        style.set_bg_color(color);
+                    }
+                    token = ctx.scanner.scan_token()?
+                }
+
                 RGB => {
                     token = ctx.scanner.scan_token()?;
+                    expect_token(&token, TokenKind::EQUAL)?;
                     tag.span += token.span;
-                    if token.kind == TokenKind::EQUAL {
-                        token = ctx.scanner.scan_token()?;
-                        tag.span += token.span;
-                        expect_token(&token, TokenKind::STRING)?;
-                    }
+
+                    token = ctx.scanner.scan_token()?;
+                    expect_token(&token, TokenKind::STRING)?;
+                    tag.span += token.span;
 
                     let end = token.content.as_ref().len() - 1;
                     let s = &token.content[1..end];
 
                     let mut scanner = Scanner::new(s);
                     scanner.text_mode = false;
-                    scanner.parse_hex = true;
                     scanner.current_pos = token.span.start; // TODO: add 1 to start position
 
                     let color = Color::Rgb(Rgb::parse(&mut scanner)?);
+
+                    let tok = scanner.scan_token()?;
+                    expect_token(&tok, TokenKind::EOF)?;
 
                     if tag_name == TagName::C {
                         style.set_fg_color(color);
@@ -297,6 +340,16 @@ impl<'src, I: ?Sized + Input> Parser<I> {
                         style.set_bg_color(color);
                     }
                     token = ctx.scanner.scan_token()?;
+                }
+                HEX => {
+                    let color = Color::Rgb(Rgb::parse_hex(&token)?);
+
+                    if tag_name == TagName::C {
+                        style.set_fg_color(color);
+                    } else if tag_name == TagName::X {
+                        style.set_bg_color(color);
+                    }
+                    token = ctx.scanner.scan_token()?
                 }
 
                 // custom

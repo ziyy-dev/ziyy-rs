@@ -18,7 +18,6 @@ pub struct Scanner<'src, I: ?Sized + Input> {
     start: u32,
     current: u32,
     pub(crate) text_mode: bool,
-    pub(crate) parse_hex: bool,
     pub start_pos: Position,
     pub current_pos: Position,
 }
@@ -39,7 +38,6 @@ impl<'src, I: ?Sized + Input> Scanner<'src, I> {
             start: 0,
             current: 0,
             text_mode: true,
-            parse_hex: false,
             start_pos: Position::new(1, 1),
             current_pos: Position::new(1, 1),
         }
@@ -208,8 +206,8 @@ impl<'src, I: ?Sized + Input> Scanner<'src, I> {
     pub fn identifier_kind(&mut self) -> TokenKind {
         use token::TokenKind::{
             A, B, BLACK, BLUE, BR, C, CLASS, CURLY, CYAN, D, DIV, DOTTED, DOUBLE, FIXED, GREEN, H,
-            HREF, I, ID, IDENTIFIER, INDENT, K, LET, MAGENTA, N, NONE, P, PRE, R, RED, RGB, S,
-            SINGLE, SPAN, U, UU, WHITE, X, YELLOW, ZIYY,
+            HREF, I, ID, IDENTIFIER, INDENT, K, LET, LIGHT, MAGENTA, N, NONE, P, PRE, R, RED, RGB,
+            S, SINGLE, SPAN, U, UU, WHITE, X, YELLOW, ZIYY,
         };
 
         macro_rules! get {
@@ -339,7 +337,10 @@ impl<'src, I: ?Sized + Input> Scanner<'src, I> {
                 't': ("alics", I),
             }),
             'k': K,
-            'l': ("et", LET),
+            'l': {
+                'e': ("t", LET),
+                'i': ("ght", LIGHT),
+            },
             'm': ("agenta", MAGENTA),
             'n': (N {
                 'e': ("gative", R),
@@ -385,7 +386,9 @@ impl<'src, I: ?Sized + Input> Scanner<'src, I> {
             'w': ("hite", WHITE),
             'x': X,
             'y': ("ellow", YELLOW),
-            'z': ("iyy", ZIYY),
+            'z': (ZIYY {
+                'i': ("yy", ZIYY)
+            }),
         });
 
         IDENTIFIER
@@ -598,6 +601,7 @@ impl<'src, I: ?Sized + Input> Scanner<'src, I> {
             '.' => self.make_token(TokenKind::DOT),
             '=' => self.make_token(TokenKind::EQUAL),
             '"' => self.string('"'),
+            '#' => self.hex(),
             '\'' => self.string('\''),
             '\x1b' if self.peek(0) == '[' => {
                 self.advance_n(1);
@@ -651,13 +655,7 @@ impl<'src, I: ?Sized + Input> Scanner<'src, I> {
                 },
                 _ => self.make_token(TokenKind::LESS),
             },
-            _ => {
-                if self.parse_hex && c == '#' {
-                    self.hex()
-                } else {
-                    self.error_token(false)
-                }
-            }
+            _ => self.error_token(false),
         }
     }
 

@@ -6,8 +6,8 @@ use crate::scanner::{Token, TokenKind};
 use crate::shared::{Input, Span};
 use crate::style::convert::FromU32;
 
-pub use ansi256::Ansi256;
 pub use ansi_color::AnsiColor;
+pub use ansi256::Ansi256;
 pub use rgb::Rgb;
 
 mod ansi256;
@@ -55,7 +55,6 @@ impl Color {
     ) -> Result<'src, I, Self> {
         let mut scanner = Scanner::new(source);
         scanner.text_mode = false;
-        scanner.parse_hex = true;
         scanner.current_pos = span.start;
 
         let token = scanner.scan_token()?;
@@ -92,12 +91,13 @@ impl Color {
 
                 rgb
             }
+            TokenKind::HEX => Color::Rgb(Rgb::parse_hex(&token)?),
             TokenKind::NONE => Color::Unset,
             _ => {
                 return Err(Error {
                     kind: ErrorKind::InvalidColor(source),
                     span,
-                })
+                });
             }
         };
 

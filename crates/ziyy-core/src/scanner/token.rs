@@ -89,6 +89,7 @@ pub enum TokenKind {
     DOTTED,
     ID,
     INDENT,
+    LIGHT,
     HREF,
     N,
     NONE,
