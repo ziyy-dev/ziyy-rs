@@ -1,93 +1,71 @@
-use arg::{parse_args, Cli};
+use getopts::{Matches, Options, ParsingStyle};
 use std::env;
 use std::fs::File;
-use std::io::{stdin, stdout, BufReader, Read, Write};
+use std::io::{BufReader, Read, Write, stdin, stdout};
 use std::path::Path;
 use std::process::exit;
-use ziyy::{zprint, Error, Renderer};
+use ziyy::{Error, Renderer, zprint};
 #[cfg(feature = "tree")]
-use ziyy_core::render_to_doc;
-
-mod arg;
+use ziyy_core::render_to_tree;
 
 fn main() {
-    let mut args0 = env::args();
-    let mut out: Vec<u8> = vec![];
-    let mut stdout = stdout().lock();
-    if args0.len() - 1 < 1 {
-        usage();
-        exit(0);
+    let args = env::args().skip(1);
+    let mut out = stdout().lock();
+    if args.len() < 1 {
+        print_usage();
+        return;
     }
 
-    args0.next();
-    let args = parse_args(
-        args0,
-        Cli {
-            short_flags: &[],
-            long_flags: &["mode"],
-            short_switches: &["h", "V", "c", "e", "n"],
-            long_switches: &[
-                "ansi",
-                "cli",
-                "help",
-                "no-newline",
-                "strip",
-                "version",
-                "tree",
-            ],
-        },
-    )
-    .unwrap();
-    let mut options = Options::default();
-    let mut params = vec![];
-    //println!("{args:?}");
-    for arg in args {
-        if arg.is_long_switch_and(|s| s == "help") | arg.is_short_switch_and(|s| s == "h") {
-            usage();
-            exit(0);
-        } else if arg.is_long_switch_and(|s| s == "version") | arg.is_short_switch_and(|s| s == "V")
-        {
-            println!(env!("CARGO_PKG_VERSION"));
-            exit(0);
-        } else if arg.is_short_switch_and(|s| s == "c") | arg.is_long_switch_and(|s| s == "cli") {
-            options.cli = true;
-        } else if arg.is_short_switch_and(|s| s == "e") | arg.is_long_switch_and(|s| s == "ansi") {
-            options.escape_only = true;
-        } else if arg.is_short_switch_and(|s| s == "n")
-            | arg.is_long_switch_and(|s| s == "no-newline")
-        {
-            options.no_newline = true;
-        } else if arg.is_long_switch_and(|s| s == "strip") {
-            options.strip = true;
-        } else if arg.is_long_switch_and(|s| s == "tree") {
-            options.tree = true;
-        } else {
-            arg.is_params_and(|s| params.push(s))
+    let mut opts = Options::new();
+    opts.optflag("c", "cli", "");
+    opts.optflag("e", "ansi", "");
+    opts.optflag("n", "no-newline", "");
+    opts.optflag("", "strip", "");
+    opts.optflag("", "tree", "");
+    opts.optflag("h", "help", "");
+    opts.optflag("V", "version", "");
+    opts.parsing_style(ParsingStyle::FloatingFrees);
+
+    let matches = match opts.parse(args) {
+        Ok(m) => m,
+        Err(f) => {
+            eprint!("{}", f.to_string());
+            exit(1);
         }
+    };
+
+    if matches.opt_present("h") {
+        print_usage();
+        return;
     }
 
-    if options.cli {
-        if params.is_empty() {
+    if matches.opt_present("V") {
+        println!("{} {}", env!("CARGO_BIN_NAME"), env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
+    if matches.opt_present("c") {
+        if matches.free.is_empty() {
             let mut buf = String::new();
             let _ = stdin().read_to_string(&mut buf);
-            parse_to_out(&buf, &mut out, options);
+            parse_to_out(&buf, &mut out, &matches);
         } else {
-            parse_to_out(&params.join(" "), &mut out, options);
+            parse_to_out(&matches.free.join(" "), &mut out, &matches);
         }
-        if !options.no_newline {
+        if !matches.opt_present("n") {
             let _ = writeln!(out);
         }
     } else {
-        if params.is_empty() {
-            usage();
+        if matches.free.is_empty() {
+            print_usage();
             exit(1);
         }
-        for param in &params {
-            if !Path::new(&param).is_file() {
-                usage();
+        for free in &matches.free {
+            if !Path::new(&free).is_file() {
+                print_usage();
                 exit(1);
             }
-            let f = File::open(param).unwrap();
+            let f = File::open(free).unwrap();
             let mut reader = BufReader::new(f);
             let mut file = String::new();
             let _ = reader.read_to_string(&mut file);
@@ -96,24 +74,23 @@ fn main() {
                 lines.next();
                 file = lines.collect::<Vec<_>>().join("\n");
             }
-            parse_to_out(&file, &mut out, options)
+            parse_to_out(&file, &mut out, &matches)
         }
     }
-
-    let _ = stdout.write(&out);
 }
 
-fn parse_to_out(source: &str, out: &mut impl Write, options: Options) {
+fn parse_to_out(source: &str, out: &mut impl Write, matches: &Matches) {
     let mut f = || {
-        if options.tree {
-            #[cfg(feature = "tree")]
-            let _ = out.write(render_to_doc(source).to_string().as_bytes());
-        } else {
-            match options.escape_only {
-                true => todo!(),
-                false => parse(&source, out),
-            }?;
+        #[cfg(feature = "tree")]
+        if matches.opt_present("tree") {
+            let _ = out.write(render_to_tree(source).to_string().as_bytes());
+            return Ok(());
         }
+
+        match matches.opt_present("e") {
+            true => todo!(),
+            false => parse(&source, out),
+        }?;
 
         /* if options.strip {
             output.root().strip_styles();
@@ -144,7 +121,7 @@ pub fn parse<'src>(source: &'src str, out: &mut impl Write) -> ziyy::Result<'src
     renderer.write_str(source)
 }
 
-fn usage() {
+fn print_usage() {
     zprint!(
         r#"<ziyy>
             <let id="g" b c="rgb(0,150,75)" />
@@ -168,13 +145,4 @@ fn usage() {
         </ziyy>"#,
         env!("CARGO_BIN_NAME")
     );
-}
-
-#[derive(Default, Clone, Copy)]
-struct Options {
-    cli: bool,
-    escape_only: bool,
-    no_newline: bool,
-    strip: bool,
-    tree: bool,
 }
