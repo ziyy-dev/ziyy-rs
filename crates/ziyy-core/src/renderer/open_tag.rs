@@ -9,9 +9,9 @@ use crate::shared::{Input, Value};
 
 use super::Renderer;
 
-impl<I: ?Sized + Input, O> Renderer<I, O> {
+impl<O> Renderer<O> {
     #[allow(clippy::too_many_lines)]
-    pub(super) fn render_open_tag<'src>(
+    pub(super) fn render_open_tag<'src, I: ?Sized + Input>(
         &mut self,
         ctx: &mut Context<'src, I>,
         mut tag: Tag<'src, I>,

@@ -1,24 +1,37 @@
-use core::iter::FromIterator;
-use proc_macro::{Literal, TokenStream, TokenTree};
+use proc_macro::TokenStream;
+use quote::quote_spanned;
+use syn::{LitStr, parse_macro_input};
 
+/// A procedural macro that processes a string literal to apply custom styling.
+///
+/// This macro takes a string literal as input and processes it using the `ziyy_core::try_style`
+/// function. It's designed to handle styled text transformations at compile time.
+///
+/// # Panics
+///
+/// Panics if:
+/// * The input is not a valid string literal
+/// * The `try_style` function returns an error during string processing
+///
+/// # Example
+///
+/// ```
+/// use ziyy_proc::zstr;
+///
+/// let styled_text = zstr!("some text with styling");
+/// ```
 #[proc_macro]
-pub fn zstr(item: TokenStream) -> TokenStream {
-    let mut tokens: Vec<_> = item.into_iter().collect();
+pub fn zstr(tokens: TokenStream) -> TokenStream {
+    let source = parse_macro_input!(tokens as LitStr);
+    let span = source.span();
+    let parsed = match ziyy_core::try_style(&source.value()) {
+        Ok(s) => s,
+        Err(e) => panic!("{e}"),
+    };
 
-    if !tokens.is_empty() {
-        let token = tokens.get_mut(0).unwrap();
+    let expanded = quote_spanned! {
+        span => #parsed
+    };
 
-        if let TokenTree::Literal(literal) = token {
-            let s: String = literal.to_string();
-            let strings: Vec<_> = s.split('"').collect();
-            let end = strings.len() - 1;
-            let s = strings[1..end].join("\"");
-            let parsed = ziyy_core::style(&s);
-
-            let literal = Literal::string(&parsed);
-            *token = TokenTree::Literal(literal)
-        }
-    }
-
-    TokenStream::from_iter(tokens)
+    TokenStream::from(expanded)
 }

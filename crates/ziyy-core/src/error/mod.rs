@@ -55,6 +55,15 @@ impl<'src, I: ?Sized + Input> From<io::Error> for Error<'src, I> {
     }
 }
 
+impl<'src, I: ?Sized + Input> From<fmt::Error> for Error<'src, I> {
+    fn from(_: fmt::Error) -> Self {
+        Error {
+            kind: ErrorKind::FmtError,
+            span: Span::inserted(),
+        }
+    }
+}
+
 impl<'src, I: ?Sized + Input> Error<'src, I> {
     /// Creates a new `Error` instance.
     ///
@@ -79,6 +88,7 @@ impl<'src, I: ?Sized + Input> Error<'src, I> {
 pub enum ErrorKind<'src, I: ?Sized + Input> {
     BuiltinTagOverwrite(&'src I),
     /// Indicates an invalid color was encountered.
+    FmtError,
     IoError(io::Error),
     InvalidColor(&'src I),
     /// Indicates an invalid number was encountered.
@@ -105,26 +115,27 @@ pub enum ErrorKind<'src, I: ?Sized + Input> {
 impl<'src, I: ?Sized + Debug + Input> Debug for ErrorKind<'src, I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BuiltinTagOverwrite(arg0) => {
+            ErrorKind::BuiltinTagOverwrite(arg0) => {
                 f.debug_tuple("BuiltinTagOverwrite").field(arg0).finish()
             }
-            Self::IoError(arg0) => f.debug_tuple("IoError").field(arg0).finish(),
-            Self::InvalidColor(arg0) => f.debug_tuple("InvalidColor").field(arg0).finish(),
-            Self::InvalidNumber(arg0) => f.debug_tuple("InvalidNumber").field(arg0).finish(),
-            Self::InvalidTagName(arg0) => f.debug_tuple("InvalidTagName").field(arg0).finish(),
-            Self::MisMatchedTags { open, close } => f
+            ErrorKind::FmtError => write!(f, "FmtError"),
+            ErrorKind::IoError(arg0) => f.debug_tuple("IoError").field(arg0).finish(),
+            ErrorKind::InvalidColor(arg0) => f.debug_tuple("InvalidColor").field(arg0).finish(),
+            ErrorKind::InvalidNumber(arg0) => f.debug_tuple("InvalidNumber").field(arg0).finish(),
+            ErrorKind::InvalidTagName(arg0) => f.debug_tuple("InvalidTagName").field(arg0).finish(),
+            ErrorKind::MisMatchedTags { open, close } => f
                 .debug_struct("MisMatchedTags")
                 .field("open", open)
                 .field("close", close)
                 .finish(),
-            Self::UnexpectedEof => write!(f, "UnexpectedEof"),
-            Self::UnexpectedToken { expected, found } => f
+            ErrorKind::UnexpectedEof => write!(f, "UnexpectedEof"),
+            ErrorKind::UnexpectedToken { expected, found } => f
                 .debug_struct("UnexpectedToken")
                 .field("expected", expected)
                 .field("found", found)
                 .finish(),
-            Self::UnknownToken(arg0) => f.debug_tuple("UnknownToken").field(arg0).finish(),
-            Self::UnterminatedString => write!(f, "UnterminatedString"),
+            ErrorKind::UnknownToken(arg0) => f.debug_tuple("UnknownToken").field(arg0).finish(),
+            ErrorKind::UnterminatedString => write!(f, "UnterminatedString"),
         }
     }
 }
@@ -135,6 +146,7 @@ impl<'src, I: ?Sized + Display + Input> Display for ErrorKind<'src, I> {
             ErrorKind::BuiltinTagOverwrite(name) => {
                 f.write_fmt(format_args!("attempt to overwrite builtin tag: `{name}`"))
             }
+            ErrorKind::FmtError => f.write_str("format error"),
             ErrorKind::IoError(error) => Display::fmt(&error.kind(), f),
             ErrorKind::InvalidNumber(number) => {
                 f.write_fmt(format_args!("invalid number: `{number}`"))

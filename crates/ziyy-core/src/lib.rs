@@ -4,20 +4,18 @@
 #![doc = include_str!("../../../README.md")]
 
 pub use context::Context;
-#[cfg(feature = "tree")]
-pub use tree::Document;
 pub use error::{Error, ErrorKind, Result};
 pub use parser::{Chunk, Tag, TagKind, TagName};
 pub use renderer::Renderer;
 pub use shared::{Position, Span, Value};
+#[cfg(feature = "tree")]
+pub use tree::Tree;
 
 #[macro_use]
 mod macros;
 
 mod builtins;
 mod context;
-#[cfg(feature = "tree")]
-pub mod tree;
 mod error;
 mod num;
 pub mod parser;
@@ -25,6 +23,8 @@ pub mod renderer;
 mod scanner;
 mod shared;
 pub mod style;
+#[cfg(feature = "tree")]
+pub mod tree;
 
 /// Styles the given text using ziyy.
 ///
@@ -64,14 +64,14 @@ pub fn style(text: &str) -> std::string::String {
 #[must_use]
 #[inline]
 pub fn try_style(text: &str) -> Result<'_, str, std::string::String> {
-    let mut renderer = Renderer::new(());
+    let renderer = Renderer::new(String::new());
     renderer.render(text)
 }
 
 #[must_use]
 #[inline]
 #[cfg(feature = "tree")]
-pub fn render_to_doc(text: &str) -> Document<'_, str> {
-    let mut renderer = Renderer::new(());
-    renderer.render_to_doc(text).unwrap()
+pub fn render_to_tree(text: &str) -> Tree<'_, str> {
+    let renderer = Renderer::new(Tree::new());
+    renderer.render(text).unwrap()
 }

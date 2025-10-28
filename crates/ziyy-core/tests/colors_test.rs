@@ -1,9 +1,9 @@
-use ziyy_core::render_to_doc;
-use ziyy_core::style::*;
 use ziyy_core::Chunk;
+use ziyy_core::render_to_tree;
+use ziyy_core::style::*;
 
 fn assert_fg_colors_eq(source: &str, color: Color) {
-    let doc = render_to_doc(source);
+    let doc = render_to_tree(source);
     let node = doc.root().first_child().unwrap();
     let chunk = node.value();
     let Chunk::Tag(tag) = chunk else { panic!() };
@@ -13,7 +13,7 @@ fn assert_fg_colors_eq(source: &str, color: Color) {
 }
 
 fn assert_bg_colors_eq(source: &str, color: Color) {
-    let doc = render_to_doc(source);
+    let doc = render_to_tree(source);
     let node = doc.root().first_child().unwrap();
     let chunk = node.value();
     let Chunk::Tag(tag) = chunk else { panic!() };

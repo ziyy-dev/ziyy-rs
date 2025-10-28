@@ -8,8 +8,8 @@ use crate::shared::{Input, Value};
 
 use super::Renderer;
 
-impl<I: ?Sized + Input, O> Renderer<I, O> {
-    pub(super) fn render_self_close_tag<'src>(
+impl<O> Renderer<O> {
+    pub(super) fn render_self_close_tag<'src, I: ?Sized + Input>(
         &mut self,
         ctx: &mut Context<'src, I>,
         tag: &Tag<'src, I>,

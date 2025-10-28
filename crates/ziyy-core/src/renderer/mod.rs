@@ -1,23 +1,22 @@
 use std::fmt;
 use std::io;
-use std::marker::PhantomData;
 
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 use crate::context::Context;
-#[cfg(feature = "tree")]
-use crate::tree::Document;
 use crate::error::Result;
 use crate::parser::{Chunk, Parser, TagKind, TagName};
 use crate::scanner::is_whitespace;
 use crate::shared::Input;
 use crate::style::Style;
+#[cfg(feature = "tree")]
+use crate::tree::Tree;
 
 mod close_tag;
 mod open_tag;
 mod self_close_tag;
 
-pub struct Renderer<I: ?Sized + Input, O> {
+pub struct Renderer<O> {
     /// A buffer to store the parsed output.
     buf: SmallVec<[u8; 1024]>,
     /// Output writter
@@ -28,10 +27,9 @@ pub struct Renderer<I: ?Sized + Input, O> {
     pre_ws: i16,
     /// The last written printable element.
     block_start: bool,
-    phantom: PhantomData<I>,
 }
 
-impl<I: ?Sized + Input, O> Renderer<I, O> {
+impl<O> Renderer<O> {
     pub fn new(output: O) -> Self {
         Self {
             buf: smallvec![],
@@ -39,12 +37,13 @@ impl<I: ?Sized + Input, O> Renderer<I, O> {
             skip_ws: true,
             pre_ws: 1,
             block_start: true,
-            phantom: PhantomData,
         }
     }
 
-    fn write_input<'src>(&mut self, input: &'src I) -> Result<'src, I, ()> {
+    fn write_input<'src, I: ?Sized + Input>(&mut self, input: &'src I) -> Result<'src, I, ()> {
+        self.buf.clear();
         let mut ctx = Context::new(input, None);
+
         loop {
             let parsed = Parser::parse(&mut ctx)?;
             match parsed {
@@ -96,10 +95,22 @@ impl<I: ?Sized + Input, O> Renderer<I, O> {
         }
     }
 
-    #[cfg(feature = "tree")]
-    pub fn render_to_doc<'src>(&mut self, input: &'src I) -> Result<'src, I, Document<'src, I>> {
+    fn write_and_save<'src, I: ?Sized + Input>(
+        &mut self,
+        ctx: &mut Context<'src, I>,
+        name: &TagName<'src, I>,
+        style: Style,
+    ) {
+        let diff = ctx.state.push(name.clone(), style);
+        self.buf.extend_from_slice(&diff.to_string2().as_ref());
+    }
+}
+
+#[cfg(feature = "tree")]
+impl<'src, I: ?Sized + Input> Renderer<Tree<'src, I>> {
+    pub fn render(self, input: &'src I) -> Result<'src, I, Tree<'src, I>> {
         let mut ctx = Context::new(input, None);
-        let mut doc = Document::new();
+        let mut doc = self.output;
         let mut id = doc.root().id();
 
         loop {
@@ -138,52 +149,47 @@ impl<I: ?Sized + Input, O> Renderer<I, O> {
             }
         }
     }
-
-    /// Writes the style to the buffer and saves the current style state.
-    fn write_and_save<'src>(
-        &mut self,
-        ctx: &mut Context<'src, I>,
-        name: &TagName<'src, I>,
-        style: Style,
-    ) {
-        let diff = ctx.state.push(name.clone(), style);
-        self.buf.extend_from_slice(&diff.to_string2().as_ref());
-    }
 }
 
-impl<O> Renderer<str, O> {
-    pub fn render<'src>(&mut self, input: &'src str) -> Result<'src, str, std::string::String> {
-        self.write_input(input)?;
-        let mut s = String::with_capacity(self.buf.len());
-
+impl<O: fmt::Write> Renderer<O> {
+    fn write_buf_to_output<'src>(&mut self) -> fmt::Result {
         // SAFETY: all bytes written to buffer are valid utf-8
         // since input is a string and all ansi escapes are byte strings
         unsafe {
-            s.push_str(str::from_utf8_unchecked(&self.buf));
+            self.output.write_str(str::from_utf8_unchecked(&self.buf))?;
         }
-
-        Ok(s)
-    }
-}
-
-impl<I: ?Sized + Input, O: io::Write> Renderer<I, O> {
-    pub fn write_str<'src>(&mut self, s: &'src I) -> Result<'src, I, ()> {
-        self.write_input(s)?;
-        self.output.write_all(&self.buf)?;
-        self.buf.clear();
 
         Ok(())
     }
 }
 
-impl<O: io::Write> io::Write for Renderer<[u8], O> {
+impl Renderer<String> {
+    pub fn render<'src>(mut self, input: &'src str) -> Result<'src, str, String> {
+        self.write_input(input)?;
+        self.output.reserve_exact(self.buf.len());
+
+        self.write_buf_to_output()?;
+
+        Ok(self.output)
+    }
+}
+
+impl<O: io::Write> Renderer<O> {
+    pub fn write_str<'src>(&mut self, s: &'src str) -> Result<'src, str, ()> {
+        self.write_input(s)?;
+        self.output.write_all(&self.buf)?;
+
+        Ok(())
+    }
+}
+
+impl<O: io::Write> io::Write for Renderer<O> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self.write_input(buf) {
             Ok(_) => {}
             Err(e) => return Err(io::Error::new(io::ErrorKind::Other, format!("{e:?}"))),
         }
         self.output.write_all(&self.buf)?;
-        self.buf.clear();
 
         Ok(buf.len())
     }
@@ -193,21 +199,87 @@ impl<O: io::Write> io::Write for Renderer<[u8], O> {
     }
 }
 
-impl<O: fmt::Write> fmt::Write for Renderer<str, O> {
+impl<O: fmt::Write> fmt::Write for Renderer<O> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         match self.write_input(s) {
             Ok(_) => {}
             Err(_) => return Err(fmt::Error),
         }
 
-        // SAFETY: all bytes written to buffer are valid utf-8
-        // since input is a string and all ansi escapes are byte strings
-        unsafe {
-            self.output.write_str(str::from_utf8_unchecked(&self.buf))?;
+        match self.write_buf_to_output() {
+            Ok(_) => {}
+            Err(_) => return Err(fmt::Error),
         }
 
-        self.buf.clear();
-
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Renderer;
+    use std::cell::RefCell;
+    use std::fmt;
+    use std::io;
+    use std::io::Write as _;
+    use std::rc::Rc;
+
+    #[test]
+    fn render_plain_text() {
+        let r: Renderer<String> = Renderer::new(String::new());
+        let out = r.render("hello world").unwrap();
+        assert_eq!(out, "hello world");
+    }
+
+    #[test]
+    fn write_bytes_to_io_writer() {
+        struct RcWriter(Rc<RefCell<Vec<u8>>>);
+
+        impl io::Write for RcWriter {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.0.borrow_mut().extend_from_slice(buf);
+                Ok(buf.len())
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let shared = Rc::new(RefCell::new(Vec::new()));
+        let writer = RcWriter(shared.clone());
+        let mut r: Renderer<RcWriter> = Renderer::new(writer);
+
+        let written = r.write(b"hello").unwrap();
+        assert_eq!(written, 5);
+        assert_eq!(&*shared.borrow(), b"hello");
+    }
+
+    #[test]
+    fn fmt_write_impl_writes_to_inner() {
+        struct RcFmt(Rc<RefCell<String>>);
+
+        impl fmt::Write for RcFmt {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                self.0.borrow_mut().push_str(s);
+                Ok(())
+            }
+        }
+
+        let shared = Rc::new(RefCell::new(String::new()));
+        let writer = RcFmt(shared.clone());
+        let mut r: Renderer<RcFmt> = Renderer::new(writer);
+
+        // Use the trait method explicitly to invoke the fmt::Write impl.
+        fmt::Write::write_str(&mut r, "formatted").unwrap();
+        assert_eq!(shared.borrow().as_str(), "formatted");
+    }
+
+    #[test]
+    fn render_preserves_leading_whitespace() {
+        let r: Renderer<String> = Renderer::new(String::new());
+        let input = "   leading";
+        let out = r.render(input).unwrap();
+        assert_eq!(out, input);
     }
 }

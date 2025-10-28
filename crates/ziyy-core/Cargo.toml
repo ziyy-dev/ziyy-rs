@@ -16,9 +16,13 @@ rustdoc-args = ["--generate-link-to-definition"]
 name = "ziyy_core"
 path = "src/lib.rs"
 
+[[test]]
+name              = "colors_test"
+required-features = ["tree"]
+
 [features]
 bindings = []
-default  = ["bindings"]
+default  = ["bindings", "tree"]
 full     = ["bindings", "tree", "uncommon"]
 tree     = ["dep:ego-tree"]
 uncommon = []

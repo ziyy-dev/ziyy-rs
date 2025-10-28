@@ -12,13 +12,13 @@ use crate::style::{
     Ansi256, Blink, Color, Delete, FontStyle, Hide, Intensity, Invert, Rgb, Style, Underline,
 };
 
-pub use chunk::Chunk;
-pub use tag::{Tag, TagKind, TagName};
 use TokenKind::{
     A, B, BLACK, BLUE, BR, C, CLASS, CODE, CURLY, CYAN, D, DASHED, DIV, DOTTED, DOUBLE, FIXED,
     GREAT, GREEN, H, HREF, I, ID, IDENTIFIER, INDENT, K, LET, MAGENTA, N, NONE, P, PRE, R, RED,
     RGB, S, SINGLE, SPAN, U, UU, WHITE, X, YELLOW, ZIYY,
 };
+pub use chunk::Chunk;
+pub use tag::{Tag, TagKind, TagName};
 
 mod chunk;
 #[macro_use]
@@ -460,7 +460,7 @@ pub(crate) fn match_tag_name<'src, I: ?Sized + Input>(
             return Err(Error {
                 kind: ErrorKind::InvalidTagName(token.content),
                 span: token.span,
-            })
+            });
         }
     };
 
